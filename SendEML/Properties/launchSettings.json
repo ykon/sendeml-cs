@@ -1,0 +1,9 @@
+{
+  "profiles": {
+    "SendEML": {
+      "commandName": "Project",
+      "commandLineArgs": "test1.json",
+      "workingDirectory": "K:\\Docs\\eml"
+    }
+  }
+}

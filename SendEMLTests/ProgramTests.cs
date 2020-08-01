@@ -223,7 +223,7 @@ test";
             Assert.IsFalse(Program.IsSuccess("xxx 300"));
         }
 
-        public void UseSetStdout(Action block) {
+        void UseSetStdout(Action block) {
             var orig_console = Console.Out;
             try {
                 block();
@@ -232,21 +232,27 @@ test";
             }
         }
 
+        string GetStdout(Action block) {
+            var str_builder = new StringBuilder();
+            UseSetStdout(() => {
+                Console.SetOut(new StringWriter(str_builder));
+                block();
+            });
+            return str_builder.ToString();
+        }
+
         [TestMethod()]
         public void SendRawBytesTest() {
             var path = Path.GetTempFileName();
             var mail = Encoding.UTF8.GetBytes(MakeSimpleMail());
             File.WriteAllBytes(path, mail);
 
-            UseSetStdout(() => {
-                var str_builder = new StringBuilder();
-                Console.SetOut(new StringWriter(str_builder));
-
-                var mem_stream = new MemoryStream();
+            var mem_stream = new MemoryStream();
+            var send_line = GetStdout(() => {
                 Program.SendRawBytes(mem_stream, path, false, false);
-                Assert.AreEqual($"send: {path}\r\n", str_builder.ToString());
-                Assert.IsTrue(mail.SequenceEqual(mem_stream.ToArray()));
             });
+            Assert.AreEqual($"send: {path}\r\n", send_line);
+            Assert.IsTrue(mail.SequenceEqual(mem_stream.ToArray()));
 
             var mem_stream2 = new MemoryStream();
             Program.SendRawBytes(mem_stream2, path, true, true);
@@ -255,14 +261,11 @@ test";
 
         [TestMethod()]
         public void RecvLineTest() {
-            UseSetStdout(() => {
-                var str_builder = new StringBuilder();
-                Console.SetOut(new StringWriter(str_builder));
-
+            var recv_line = GetStdout(() => {
                 var stream_reader = new StreamReader(new MemoryStream(Encoding.UTF8.GetBytes("250 OK\r\n")));
                 Assert.AreEqual("250 OK", Program.RecvLine(stream_reader));
-                Assert.AreEqual("recv: 250 OK\r\n", str_builder.ToString());
             });
+            Assert.AreEqual("recv: 250 OK\r\n", recv_line);
 
             var stream_reader2 = new StreamReader(new MemoryStream());
             Assert.ThrowsException<IOException>(() => Program.RecvLine(stream_reader2));
@@ -274,21 +277,18 @@ test";
         [TestMethod()]
         public void SendLineTest() {
             void test(string cmd, string stdout_expected, string writer_expected) {
-                var str_builder = new StringBuilder();
-                Console.SetOut(new StringWriter(str_builder));
-
                 var mem_stream = new MemoryStream();
                 var stream_writer = new StreamWriter(mem_stream);
 
-                Program.SendLine(stream_writer, cmd);
-                Assert.AreEqual(stdout_expected, str_builder.ToString());
+                var send_line = GetStdout(() => {
+                    Program.SendLine(stream_writer, cmd);
+                });
+                Assert.AreEqual(stdout_expected, send_line);
                 Assert.AreEqual(writer_expected, Encoding.UTF8.GetString(mem_stream.ToArray()));
             }
 
-            UseSetStdout(() => {
-                test("EHLO localhost", "send: EHLO localhost\r\n", "EHLO localhost\r\n");
-                test("\r\n.", "send: <CRLF>.\r\n", "\r\n.\r\n");
-            });
+            test("EHLO localhost", "send: EHLO localhost\r\n", "EHLO localhost\r\n");
+            test("\r\n.", "send: <CRLF>.\r\n", "\r\n.\r\n");
         }
 
         SendCmd MakeTestSendCmd(string expected) {
@@ -338,6 +338,23 @@ test";
         [TestMethod()]
         public void SendRsetTest() {
             Program.SendRset(MakeTestSendCmd("RSET"));
+        }
+
+        [TestMethod()]
+        public void WriteVersionTest() {
+            var version = GetStdout(() => {
+                Program.WriteVersion();
+            });
+            Assert.IsTrue(version.Contains("Version:"));
+            Assert.IsTrue(version.Contains(Program.VERSION.ToString()));
+        }
+
+        [TestMethod()]
+        public void WriteUsageTest() {
+            var usage = GetStdout(() => {
+                Program.WriteUsage();
+            });
+            Assert.IsTrue(usage.Contains("Usage:"));
         }
     }
 }

@@ -19,26 +19,37 @@ namespace SendEML {
     public class Program {
         public const decimal VERSION = 1.0m;
 
-        //const char CR = '\r';
-        const char LF = '\n';
-        const string CRLF = "\r\n";
+        public const char LF = '\n';
+        public const string CRLF = "\r\n";
 
-        static readonly Regex DATE_REGEX = new Regex(@"^Date: [\S ]+", RegexOptions.Compiled);
-        static readonly Regex MESSAGE_ID_REGEX = new Regex(@"^Message-ID: [\S]+", RegexOptions.Compiled);
+        static readonly byte[] DATE_BYTES = Encoding.UTF8.GetBytes("Date:");
+        static readonly byte[] MESSAGE_ID_BYTES = Encoding.UTF8.GetBytes("Message-ID:");
 
-        public static bool IsDateLine(string line) {
-            return DATE_REGEX.IsMatch(line);
+        public static bool MatchHeaderField(byte[] line, byte[] header) {
+            if (line.Length < header.Length)
+                return false;
+
+            for (var i = 0; i < header.Length; i++) {
+                if (header[i] != line[i])
+                    return false;
+            }
+
+            return true;
+        }
+
+        public static bool IsDateLine(byte[] line) {
+            return MatchHeaderField(line, DATE_BYTES);
         }
 
         public static string MakeNowDateLine() {
             var us = new CultureInfo("en-US");
             var now = DateTimeOffset.Now;
             var offset = now.ToString("zzz", us).Replace(":", "");
-            return "Date: " + now.ToString("ddd, dd MMM yyyy HH:mm:ss ", us) + offset;
+            return "Date: " + now.ToString("ddd, dd MMM yyyy HH:mm:ss ", us) + offset + CRLF;
         }
 
-        public static bool IsMessageIdLine(string line) {
-            return MESSAGE_ID_REGEX.IsMatch(line);
+        public static bool IsMessageIdLine(byte[] line) {
+            return MatchHeaderField(line, MESSAGE_ID_BYTES);
         }
 
         static readonly Random random = new Random();
@@ -46,7 +57,7 @@ namespace SendEML {
             const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
             const int length = 62;
             var rand_str = new string(Enumerable.Repeat(chars, length).Select(s => s[random.Next(s.Length)]).ToArray());
-            return $"Message-ID: <{rand_str}>";
+            return $"Message-ID: <{rand_str}>" + CRLF;
         }
 
         public static int FindLfIndex(byte[] file_buf, int offset) {
@@ -81,24 +92,16 @@ namespace SendEML {
             }).ToList();
         }
 
-        public static bool IsFirstD(byte[] line) {
-            return line.FirstOrDefault() == (byte)'D';
-        }
-
-        public static bool IsFirstM(byte[] line) {
-            return line.FirstOrDefault() == (byte)'M';
-        }
-
-        static int FindLineIndex(List<byte[]> lines, Func<byte[], bool> first_pred, Func<string, bool> line_pred) {
-            return lines.FindIndex(l => first_pred(l) && line_pred(Encoding.UTF8.GetString(l)));
+        static int FindLineIndex(List<byte[]> lines, Predicate<byte[]> line_pred) {
+            return lines.FindIndex(line_pred);
         }
 
         public static int FindDateLineIndex(List<byte[]> lines) {
-            return FindLineIndex(lines, IsFirstD, IsDateLine);
+            return FindLineIndex(lines, IsDateLine);
         }
 
         public static int FindMessageIdLineIndex(List<byte[]> lines) {
-            return FindLineIndex(lines, IsFirstM, IsMessageIdLine);
+            return FindLineIndex(lines, IsMessageIdLine);
         }
 
         static void ReplaceLine(List<byte[]> lines, bool update, Func<List<byte[]>, int> find_line, Func<string> make_line) {

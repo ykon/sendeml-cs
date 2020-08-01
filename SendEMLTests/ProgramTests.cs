@@ -16,31 +16,63 @@ namespace SendEML.Tests {
     [TestClass()]
     public class ProgramTests {
         [TestMethod()]
+        public void MatchHeaderFieldTest() {
+            Func<string, string, bool> test =
+                (s1, s2) => Program.MatchHeaderField(Encoding.UTF8.GetBytes(s1), Encoding.UTF8.GetBytes(s2));
+
+            Assert.IsTrue(test("Test:", "Test:"));
+            Assert.IsTrue(test("Test: ", "Test:"));
+            Assert.IsTrue(test("Test:x", "Test:"));
+
+            Assert.IsFalse(test("", "Test:"));
+            Assert.IsFalse(test("T", "Test:"));
+            Assert.IsFalse(test("Test", "Test:"));
+        }
+
+        [TestMethod()]
         public void IsDateLineTest() {
-            Assert.IsTrue(Program.IsDateLine("Date: xxx"));
-            Assert.IsFalse(Program.IsDateLine("xxx: Date"));
-            Assert.IsFalse(Program.IsDateLine("X-Date: xxx"));
+            Func<string, bool> test = s => Program.IsDateLine(Encoding.UTF8.GetBytes(s));
+
+            Assert.IsTrue(test("Date: xxx"));
+            Assert.IsTrue(test("Date:xxx"));
+            Assert.IsTrue(test("Date:"));
+            Assert.IsTrue(test("Date:   "));
+
+            Assert.IsFalse(test(""));
+            Assert.IsFalse(test("Date"));
+            Assert.IsFalse(test("xxx: Date"));
+            Assert.IsFalse(test("X-Date: xxx"));
         }
 
         [TestMethod()]
         public void MakeNowDateLineTest() {
             var line = Program.MakeNowDateLine();
             Assert.IsTrue(line.StartsWith("Date: "));
-            Assert.IsTrue(line.Length <= 76);
+            Assert.IsTrue(line.EndsWith(Program.CRLF));
+            Assert.IsTrue(line.Length <= 80);
         }
 
         [TestMethod()]
         public void IsMessageIdLineTest() {
-            Assert.IsTrue(Program.IsMessageIdLine("Message-ID: xxx"));
-            Assert.IsFalse(Program.IsMessageIdLine("xxx: Message-ID"));
-            Assert.IsFalse(Program.IsMessageIdLine("X-Message-ID: xxx"));
+            Func<string, bool> test = s => Program.IsMessageIdLine(Encoding.UTF8.GetBytes(s));
+
+            Assert.IsTrue(test("Message-ID: xxx"));
+            Assert.IsTrue(test("Message-ID:xxx"));
+            Assert.IsTrue(test("Message-ID:"));
+            Assert.IsTrue(test("Message-ID:   "));
+
+            Assert.IsFalse(test(""));
+            Assert.IsFalse(test("Message-ID"));
+            Assert.IsFalse(test("xxx: Message-ID"));
+            Assert.IsFalse(test("X-Message-ID: xxx"));
         }
 
         [TestMethod()]
         public void MakeRandomMessageIdLineTest() {
             var line = Program.MakeRandomMessageIdLine();
             Assert.IsTrue(line.StartsWith("Message-ID: "));
-            Assert.IsTrue(line.Length <= 76);
+            Assert.IsTrue(line.EndsWith(Program.CRLF));
+            Assert.IsTrue(line.Length <= 80);
         }
 
         string MakeSimpleMail() {
@@ -111,26 +143,6 @@ test";
             Assert.AreEqual("Content-Language: en-US\r\n", Encoding.UTF8.GetString(lines[lines.Count - 3]));
             Assert.AreEqual("\r\n", Encoding.UTF8.GetString(lines[lines.Count - 2]));
             Assert.AreEqual("test", Encoding.UTF8.GetString(lines[lines.Count - 1]));
-        }
-
-        byte[] MakeByteArray(params char[] cs) {
-            return cs.Select(c => (byte)c).ToArray();
-        }
-
-        [TestMethod()]
-        public void IsFirstDTest() {
-            Assert.IsTrue(Program.IsFirstD(MakeByteArray('D', 'A', 'B')));
-            Assert.IsTrue(Program.IsFirstD(MakeByteArray('D', 'B', 'A')));
-            Assert.IsFalse(Program.IsFirstD(MakeByteArray('A', 'B', 'D')));
-            Assert.IsFalse(Program.IsFirstD(MakeByteArray('B', 'A', 'D')));
-        }
-
-        [TestMethod()]
-        public void IsFirstMTest() {
-            Assert.IsTrue(Program.IsFirstM(MakeByteArray('M', 'A', 'B')));
-            Assert.IsTrue(Program.IsFirstM(MakeByteArray('M', 'B', 'A')));
-            Assert.IsFalse(Program.IsFirstM(MakeByteArray('A', 'B', 'M')));
-            Assert.IsFalse(Program.IsFirstM(MakeByteArray('B', 'A', 'M')));
         }
 
         [TestMethod()]

@@ -42,8 +42,9 @@ namespace SendEML {
         }
 
         static readonly Random random = new Random();
-        public static string MakeRandomMessageIdLine(int length = 62) {
+        public static string MakeRandomMessageIdLine() {
             const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+            const int length = 62;
             var rand_str = new string(Enumerable.Repeat(chars, length).Select(s => s[random.Next(s.Length)]).ToArray());
             return $"Message-ID: <{rand_str}>";
         }
@@ -88,12 +89,24 @@ namespace SendEML {
             return line.FirstOrDefault() == (byte)'M';
         }
 
+        static int FindLineIndex(List<byte[]> lines, Func<byte[], bool> first_pred, Func<string, bool> line_pred) {
+            return lines.FindIndex(l => first_pred(l) && line_pred(Encoding.UTF8.GetString(l)));
+        }
+
         public static int FindDateLineIndex(List<byte[]> lines) {
-            return lines.FindIndex(l => IsFirstD(l) && IsDateLine(Encoding.UTF8.GetString(l)));
+            return FindLineIndex(lines, IsFirstD, IsDateLine);
         }
 
         public static int FindMessageIdLineIndex(List<byte[]> lines) {
-            return lines.FindIndex(l => IsFirstM(l) && IsMessageIdLine(Encoding.UTF8.GetString(l)));
+            return FindLineIndex(lines, IsFirstM, IsMessageIdLine);
+        }
+
+        static void ReplaceLine(List<byte[]> lines, bool update, Func<List<byte[]>, int> find_line, Func<string> make_line) {
+            if (update) {
+                var idx = find_line(lines);
+                if (idx != -1)
+                    lines[idx] = Encoding.UTF8.GetBytes(make_line());
+            }
         }
 
         public static List<byte[]> ReplaceRawLines(List<byte[]> lines, bool update_date, bool update_message_id) {
@@ -102,16 +115,8 @@ namespace SendEML {
 
             var reps_lines = new List<byte[]>(lines);
 
-            if (update_date) {
-                var date_idx = FindDateLineIndex(reps_lines);
-                if (date_idx != -1)
-                    reps_lines[date_idx] = Encoding.UTF8.GetBytes(MakeNowDateLine());
-            }
-            if (update_message_id) {
-                var mid_idx = FindMessageIdLineIndex(reps_lines);
-                if (mid_idx != -1)
-                    reps_lines[mid_idx] = Encoding.UTF8.GetBytes(MakeRandomMessageIdLine());
-            }
+            ReplaceLine(reps_lines, update_date, FindDateLineIndex, MakeNowDateLine);
+            ReplaceLine(reps_lines, update_message_id, FindMessageIdLineIndex, MakeRandomMessageIdLine);
 
             return reps_lines;
         }
@@ -298,7 +303,7 @@ namespace SendEML {
             Console.WriteLine(MakeJsonSample());
         }
 
-        static void WriteVersion() {
+        public static void WriteVersion() {
             Console.WriteLine($"SendEML / Version: {VERSION}");
         }
 

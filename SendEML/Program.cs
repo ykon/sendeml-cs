@@ -174,9 +174,13 @@ namespace SendEML {
             return JsonSerializer.Deserialize<Settings>(File.ReadAllText(path), options);
         }
 
-        static readonly Regex RECV_REGEX = new Regex(@"^\d{3} .+", RegexOptions.Compiled);
+        static readonly Regex LAST_REPLY_REGEX = new Regex(@"^\d{3} .+", RegexOptions.Compiled);
 
-        public static bool IsSuccess(string line) {
+        public static bool IsLastReply(string line) {
+            return LAST_REPLY_REGEX.IsMatch(line);
+        }
+
+        public static bool IsPositiveReply(string line) {
             return (new[] {'2', '3'}).Contains(line.FirstOrDefault());
         }
 
@@ -185,11 +189,11 @@ namespace SendEML {
                 var line = reader.ReadLine()?.Trim() ?? throw new IOException("Connection closed by foreign host.");
                 Console.WriteLine(GetCurrentIdPrefix() + $"recv: {line}");
 
-                if (RECV_REGEX.IsMatch(line)) {
-                    if (!IsSuccess(line))
-                        throw new IOException(line);
+                if (IsLastReply(line)) {
+                    if (IsPositiveReply(line))
+                        return line;
 
-                    return line;
+                    throw new IOException(line);
                 }
             }
         }

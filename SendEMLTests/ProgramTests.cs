@@ -226,13 +226,21 @@ test";
         }
 
         [TestMethod()]
-        public void IsSuccessTest() {
-            Assert.IsTrue(Program.IsSuccess("200 xxx"));
-            Assert.IsTrue(Program.IsSuccess("300 xxx"));
-            Assert.IsFalse(Program.IsSuccess("400 xxx"));
-            Assert.IsFalse(Program.IsSuccess("500 xxx"));
-            Assert.IsFalse(Program.IsSuccess("xxx 200"));
-            Assert.IsFalse(Program.IsSuccess("xxx 300"));
+        public void IsLastReplyTest() {
+            Assert.IsFalse(Program.IsLastReply("250-First line"));
+            Assert.IsFalse(Program.IsLastReply("250-Second line"));
+            Assert.IsFalse(Program.IsLastReply("250-234 Text beginning with numbers"));
+            Assert.IsTrue(Program.IsLastReply("250 The last line"));
+        }
+
+        [TestMethod()]
+        public void IsPositiveReplyTest() {
+            Assert.IsTrue(Program.IsPositiveReply("200 xxx"));
+            Assert.IsTrue(Program.IsPositiveReply("300 xxx"));
+            Assert.IsFalse(Program.IsPositiveReply("400 xxx"));
+            Assert.IsFalse(Program.IsPositiveReply("500 xxx"));
+            Assert.IsFalse(Program.IsPositiveReply("xxx 200"));
+            Assert.IsFalse(Program.IsPositiveReply("xxx 300"));
         }
 
         void UseSetStdout(Action block) {

@@ -5,10 +5,10 @@
 
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System;
-using System.Collections.Generic;
-using System.Text;
-using System.Linq;
+using System.Collections.Immutable;
 using System.IO;
+using System.Linq;
+using System.Text;
 
 namespace SendEML.Tests {
     using SendCmd = Func<String, String>;
@@ -151,8 +151,8 @@ test";
             var lines = Program.GetRawLines(mail);
             Assert.AreEqual(4, Program.FindDateLineIndex(lines));
 
-            lines.RemoveAt(4);
-            Assert.AreEqual(-1, Program.FindDateLineIndex(lines));
+            var new_lines = lines.RemoveAt(4);
+            Assert.AreEqual(-1, Program.FindDateLineIndex(new_lines));
         }
 
         [TestMethod()]
@@ -161,8 +161,8 @@ test";
             var lines = Program.GetRawLines(mail);
             Assert.AreEqual(3, Program.FindMessageIdLineIndex(lines));
 
-            lines.RemoveAt(3);
-            Assert.AreEqual(-1, Program.FindMessageIdLineIndex(lines));
+            var new_lines = lines.RemoveAt(3);
+            Assert.AreEqual(-1, Program.FindMessageIdLineIndex(new_lines));
         }
 
         [TestMethod()]
@@ -216,9 +216,9 @@ test";
             Assert.AreEqual("172.16.3.151", settings.SmtpHost);
             Assert.AreEqual(25, settings.SmtpPort);
             Assert.AreEqual("a001@ah62.example.jp", settings.FromAddress);
-            Assert.IsTrue(new List<string> { "a001@ah62.example.jp", "a002@ah62.example.jp", "a003@ah62.example.jp" }
+            Assert.IsTrue(new[] { "a001@ah62.example.jp", "a002@ah62.example.jp", "a003@ah62.example.jp" }
                 .SequenceEqual(settings.ToAddress));
-            Assert.IsTrue(new List<string> { "test1.eml", "test2.eml", "test3.eml" }
+            Assert.IsTrue(new[] { "test1.eml", "test2.eml", "test3.eml" }
                 .SequenceEqual(settings.EmlFile));
             Assert.AreEqual(true, settings.UpdateDate);
             Assert.AreEqual(true, settings.UpdateMessageId);
@@ -337,7 +337,7 @@ test";
                 return cmd;
             };
 
-            Program.SendRcptTo(test, new List<string> { "a001@ah62.example.jp", "a002@ah62.example.jp", "a003@ah62.example.jp" });
+            Program.SendRcptTo(test, ImmutableList.Create("a001@ah62.example.jp", "a002@ah62.example.jp", "a003@ah62.example.jp"));
         }
 
         [TestMethod()]

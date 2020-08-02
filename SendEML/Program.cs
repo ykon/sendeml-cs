@@ -4,7 +4,7 @@
  */
 
 using System;
-using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -64,13 +64,13 @@ namespace SendEML {
             return Array.IndexOf(file_buf, (byte)LF, offset);
         }
 
-        public static List<int> FindAllLfIndices(byte[] file_buf) {
-            var indices = new List<int>();
+        public static ImmutableList<int> FindAllLfIndices(byte[] file_buf) {
+            var indices = ImmutableList.CreateBuilder<int>();
             var i = 0;
             while (true) {
                 i = FindLfIndex(file_buf, i);
                 if (i == -1)
-                    return indices;
+                    return indices.ToImmutable();
 
                 indices.Add(i);
                 i += 1;
@@ -83,48 +83,48 @@ namespace SendEML {
             return dest_buf;
         }
 
-        public static List<byte[]> GetRawLines(byte[] file_buf) {
+        public static ImmutableList<byte[]> GetRawLines(byte[] file_buf) {
             var offset = 0;
-            return FindAllLfIndices(file_buf).Append(file_buf.Length - 1).Select(i => {
+            return FindAllLfIndices(file_buf).Add(file_buf.Length - 1).Select(i => {
                 var line = CopyNew(file_buf, offset, i - offset + 1);
                 offset = i + 1;
                 return line;
-            }).ToList();
+            }).ToImmutableList();
         }
 
-        static int FindLineIndex(List<byte[]> lines, Predicate<byte[]> line_pred) {
+        static int FindLineIndex(ImmutableList<byte[]> lines, Predicate<byte[]> line_pred) {
             return lines.FindIndex(line_pred);
         }
 
-        public static int FindDateLineIndex(List<byte[]> lines) {
+        public static int FindDateLineIndex(ImmutableList<byte[]> lines) {
             return FindLineIndex(lines, IsDateLine);
         }
 
-        public static int FindMessageIdLineIndex(List<byte[]> lines) {
+        public static int FindMessageIdLineIndex(ImmutableList<byte[]> lines) {
             return FindLineIndex(lines, IsMessageIdLine);
         }
 
-        static void ReplaceLine(List<byte[]> lines, bool update, Func<List<byte[]>, int> find_line, Func<string> make_line) {
-            if (update) {
-                var idx = find_line(lines);
-                if (idx != -1)
-                    lines[idx] = Encoding.UTF8.GetBytes(make_line());
-            }
-        }
-
-        public static List<byte[]> ReplaceRawLines(List<byte[]> lines, bool update_date, bool update_message_id) {
+        public static ImmutableList<byte[]> ReplaceRawLines(ImmutableList<byte[]> lines, bool update_date, bool update_message_id) {
             if (!update_date && !update_message_id)
                 return lines;
 
-            var reps_lines = new List<byte[]>(lines);
+            var reps_lines = lines.ToBuilder();
 
-            ReplaceLine(reps_lines, update_date, FindDateLineIndex, MakeNowDateLine);
-            ReplaceLine(reps_lines, update_message_id, FindMessageIdLineIndex, MakeRandomMessageIdLine);
+            void ReplaceLine(bool update, Func<ImmutableList<byte[]>, int> find_line, Func<string> make_line) {
+                if (update) {
+                    var idx = find_line(lines);
+                    if (idx != -1)
+                        reps_lines[idx] = Encoding.UTF8.GetBytes(make_line());
+                }
+            }
 
-            return reps_lines;
+            ReplaceLine(update_date, FindDateLineIndex, MakeNowDateLine);
+            ReplaceLine(update_message_id, FindMessageIdLineIndex, MakeRandomMessageIdLine);
+
+            return reps_lines.ToImmutable();
         }
 
-        public static byte[] ConcatRawLines(List<byte[]> lines) {
+        public static byte[] ConcatRawLines(ImmutableList<byte[]> lines) {
             var buf = new byte[lines.Sum(l => l.Length)];
             var offset = 0;
             foreach (var l in lines) {
@@ -157,8 +157,8 @@ namespace SendEML {
             public string SmtpHost { get; set; }
             public int SmtpPort { get; set; }
             public string FromAddress { get; set; }
-            public List<string> ToAddress { get; set; }
-            public List<string> EmlFile { get; set; }
+            public ImmutableList<string> ToAddress { get; set; }
+            public ImmutableList<string> EmlFile { get; set; }
             public bool UpdateDate { get; set; }
             public bool UpdateMessageId { get; set; }
             public bool UseParallel { get; set; }
@@ -220,7 +220,7 @@ namespace SendEML {
             send($"MAIL FROM: <{from_addr}>");
         }
 
-        public static void SendRcptTo(SendCmd send, List<string> to_addrs) {
+        public static void SendRcptTo(SendCmd send, ImmutableList<string> to_addrs) {
             foreach (var addr in to_addrs)
                 send($"RCPT TO: <{addr}>");
         }
@@ -241,7 +241,7 @@ namespace SendEML {
             send("RSET");
         }
 
-        public static void SendMessages(Settings settings, List<string> eml_files) {
+        public static void SendMessages(Settings settings, ImmutableList<string> eml_files) {
             using var socket = new TcpClient(settings.SmtpHost, settings.SmtpPort);
             var stream = socket.GetStream();
             stream.ReadTimeout = 1000;
@@ -278,7 +278,7 @@ namespace SendEML {
         }
 
         public static void SendOneMessage(Settings settings, string file) {
-            SendMessages(settings, new List<string> { file });
+            SendMessages(settings, ImmutableList.Create(file));
         }
 
         public static string MakeJsonSample() {

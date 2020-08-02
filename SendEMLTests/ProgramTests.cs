@@ -108,9 +108,9 @@ test";
             Assert.AreEqual(49, indices[1]);
             Assert.AreEqual(75, indices[2]);
 
-            Assert.AreEqual(390, indices[indices.Count - 3]);
-            Assert.AreEqual(415, indices[indices.Count - 2]);
-            Assert.AreEqual(417, indices[indices.Count - 1]);
+            Assert.AreEqual(390, indices[^3]);
+            Assert.AreEqual(415, indices[^2]);
+            Assert.AreEqual(417, indices[^1]);
         }
 
         [TestMethod()]
@@ -140,29 +140,9 @@ test";
             Assert.AreEqual("Subject: test\r\n", Encoding.UTF8.GetString(lines[1]));
             Assert.AreEqual("To: a002@ah62.example.jp\r\n", Encoding.UTF8.GetString(lines[2]));
 
-            Assert.AreEqual("Content-Language: en-US\r\n", Encoding.UTF8.GetString(lines[lines.Count - 3]));
-            Assert.AreEqual("\r\n", Encoding.UTF8.GetString(lines[lines.Count - 2]));
-            Assert.AreEqual("test", Encoding.UTF8.GetString(lines[lines.Count - 1]));
-        }
-
-        [TestMethod()]
-        public void FindDateLineIndexTest() {
-            var mail = Encoding.UTF8.GetBytes(MakeSimpleMail());
-            var lines = Program.GetRawLines(mail);
-            Assert.AreEqual(4, Program.FindDateLineIndex(lines));
-
-            var new_lines = lines.RemoveAt(4);
-            Assert.AreEqual(-1, Program.FindDateLineIndex(new_lines));
-        }
-
-        [TestMethod()]
-        public void FindMessageIdLineIndexTest() {
-            var mail = Encoding.UTF8.GetBytes(MakeSimpleMail());
-            var lines = Program.GetRawLines(mail);
-            Assert.AreEqual(3, Program.FindMessageIdLineIndex(lines));
-
-            var new_lines = lines.RemoveAt(3);
-            Assert.AreEqual(-1, Program.FindMessageIdLineIndex(new_lines));
+            Assert.AreEqual("Content-Language: en-US\r\n", Encoding.UTF8.GetString(lines[^3]));
+            Assert.AreEqual("\r\n", Encoding.UTF8.GetString(lines[^2]));
+            Assert.AreEqual("test", Encoding.UTF8.GetString(lines[^1]));
         }
 
         [TestMethod()]

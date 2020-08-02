@@ -92,34 +92,22 @@ namespace SendEML {
             }).ToImmutableList();
         }
 
-        static int FindLineIndex(ImmutableList<byte[]> lines, Predicate<byte[]> line_pred) {
-            return lines.FindIndex(line_pred);
-        }
-
-        public static int FindDateLineIndex(ImmutableList<byte[]> lines) {
-            return FindLineIndex(lines, IsDateLine);
-        }
-
-        public static int FindMessageIdLineIndex(ImmutableList<byte[]> lines) {
-            return FindLineIndex(lines, IsMessageIdLine);
-        }
-
         public static ImmutableList<byte[]> ReplaceRawLines(ImmutableList<byte[]> lines, bool update_date, bool update_message_id) {
             if (!update_date && !update_message_id)
                 return lines;
 
             var reps_lines = lines.ToBuilder();
 
-            void ReplaceLine(bool update, Func<ImmutableList<byte[]>, int> find_line, Func<string> make_line) {
+            void ReplaceLine(bool update, Predicate<byte[]> match_line, Func<string> make_line) {
                 if (update) {
-                    var idx = find_line(lines);
+                    var idx = lines.FindIndex(match_line);
                     if (idx != -1)
                         reps_lines[idx] = Encoding.UTF8.GetBytes(make_line());
                 }
             }
 
-            ReplaceLine(update_date, FindDateLineIndex, MakeNowDateLine);
-            ReplaceLine(update_message_id, FindMessageIdLineIndex, MakeRandomMessageIdLine);
+            ReplaceLine(update_date, IsDateLine, MakeNowDateLine);
+            ReplaceLine(update_message_id, IsMessageIdLine, MakeRandomMessageIdLine);
 
             return reps_lines.ToImmutable();
         }
@@ -181,7 +169,11 @@ namespace SendEML {
         }
 
         public static bool IsPositiveReply(string line) {
-            return (new[] {'2', '3'}).Contains(line.FirstOrDefault());
+            return line.FirstOrDefault() switch {
+                '2' => true,
+                '3' => true,
+                _ => false
+            };
         }
 
         public static string RecvLine(StreamReader reader) {

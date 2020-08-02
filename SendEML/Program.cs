@@ -15,7 +15,7 @@ using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace SendEML {
-    using SendCmd = Func<String, String>;
+    using SendCmd = Func<string, string>;
     public class Program {
         public const decimal VERSION = 1.1m;
 
@@ -140,7 +140,7 @@ namespace SendEML {
 
         static volatile bool useParallel = false;
 
-        public static String GetCurrentIdPrefix() {
+        public static string GetCurrentIdPrefix() {
             return useParallel ? $"id: {Task.CurrentId}, " : "";
         }
 

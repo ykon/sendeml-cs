@@ -11,7 +11,7 @@ using System.Linq;
 using System.Text;
 
 namespace SendEML.Tests {
-    using SendCmd = Func<String, String>;
+    using SendCmd = Func<string, string>;
 
     [TestClass()]
     public class ProgramTests {

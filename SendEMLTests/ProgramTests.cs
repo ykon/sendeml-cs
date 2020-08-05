@@ -9,6 +9,7 @@ using System.Collections.Immutable;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace SendEML.Tests {
     using SendCmd = Func<string, string>;
@@ -355,6 +356,27 @@ test";
                 Program.WriteUsage();
             });
             Assert.IsTrue(usage.Contains("Usage:"));
+        }
+
+        [TestMethod()]
+        public void CheckSettings() {
+            static void checkNoKey(string key) {
+                var json = Program.MakeJsonSample();
+                var noKey = new Regex(key).Replace(json, $"X-{key}", 1);
+                Program.CheckSettings(Program.GetSettingsFromText(noKey));
+            }
+
+            Assert.ThrowsException<IOException>(() => checkNoKey("smtpHost"));
+            Assert.ThrowsException<IOException>(() => checkNoKey("smtpPort"));
+            Assert.ThrowsException<IOException>(() => checkNoKey("fromAddress"));
+            Assert.ThrowsException<IOException>(() => checkNoKey("toAddress"));
+            Assert.ThrowsException<IOException>(() => checkNoKey("emlFile"));
+
+            try {
+                checkNoKey("testKey");
+            } catch(Exception e) {
+                Assert.Fail("Expected no exception: " + e.Message);
+            }
         }
     }
 }

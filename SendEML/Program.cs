@@ -141,25 +141,31 @@ namespace SendEML {
             stream.Flush();
         }
 
+#nullable enable
         public class Settings {
-            public string SmtpHost { get; set; }
-            public int SmtpPort { get; set; }
-            public string FromAddress { get; set; }
-            public ImmutableList<string> ToAddress { get; set; }
-            public ImmutableList<string> EmlFile { get; set; }
-            public bool UpdateDate { get; set; }
-            public bool UpdateMessageId { get; set; }
-            public bool UseParallel { get; set; }
+            public string? SmtpHost { get; set; }
+            public int? SmtpPort { get; set; }
+            public string? FromAddress { get; set; }
+            public ImmutableList<string>? ToAddress { get; set; }
+            public ImmutableList<string>? EmlFile { get; set; }
+            public bool UpdateDate { get; set; } = true;
+            public bool UpdateMessageId { get; set; } = true;
+            public bool UseParallel { get; set; } = false;
         }
+#nullable disable
 
-        public static Settings GetSettings(string file) {
-            var path = Path.GetFullPath(file);
+        public static Settings GetSettingsFromText(string text) {
             var options = new JsonSerializerOptions {
                 PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
                 ReadCommentHandling = JsonCommentHandling.Skip
             };
 
-            return JsonSerializer.Deserialize<Settings>(File.ReadAllText(path), options);
+            return JsonSerializer.Deserialize<Settings>(text, options);
+        }
+
+        public static Settings GetSettings(string file) {
+            var path = Path.GetFullPath(file);
+            return GetSettingsFromText(File.ReadAllText(path));
         }
 
         static readonly Regex LAST_REPLY_REGEX = new Regex(@"^\d{3} .+", RegexOptions.Compiled);
@@ -234,7 +240,7 @@ namespace SendEML {
         }
 
         public static void SendMessages(Settings settings, ImmutableList<string> eml_files) {
-            using var socket = new TcpClient(settings.SmtpHost, settings.SmtpPort);
+            using var socket = new TcpClient(settings.SmtpHost, (int)settings.SmtpPort!);
             var stream = socket.GetStream();
             stream.ReadTimeout = 1000;
 
@@ -249,7 +255,7 @@ namespace SendEML {
             var mail_sent = false;
             foreach (var file in eml_files) {
                 if (!File.Exists(file)) {
-                    Console.WriteLine($"{file}: EML file does not exists");
+                    Console.WriteLine($"{file}: EML file does not exist");
                     continue;
                 }
 
@@ -306,8 +312,20 @@ namespace SendEML {
             Console.WriteLine($"SendEML / Version: {VERSION}");
         }
 
+        public static void CheckSettings(Settings settings) {
+            var key = settings.SmtpHost == null ? "smtpHost"
+                : settings.SmtpPort == null ? "smtpPort"
+                : settings.FromAddress == null ? "fromAddress"
+                : settings.ToAddress == null ? "toAddress"
+                : settings.EmlFile == null ? "emlFile"
+                : "";
+
+            if (key != "")
+                throw new IOException($"{key} key does not exist");
+        }
+
         static void Main(string[] args) {
-            if (!args.Any()) {
+            if (args.Length == 0) {
                 WriteUsage();
                 return;
             }
@@ -319,12 +337,14 @@ namespace SendEML {
 
             foreach (var json_file in args) {
                 if (!File.Exists(json_file)) {
-                    Console.WriteLine($"{json_file}: Json file does not exists");
+                    Console.WriteLine($"{json_file}: Json file does not exist");
                     continue;
                 }
 
                 try {
                     var settings = GetSettings(json_file);
+                    CheckSettings(settings);
+
                     if (settings.UseParallel) {
                         useParallel = true;
                         settings.EmlFile.AsParallel().ForAll(f => SendOneMessage(settings, f));

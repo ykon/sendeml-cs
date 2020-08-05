@@ -17,7 +17,7 @@ using System.Threading.Tasks;
 namespace SendEML {
     using SendCmd = Func<string, string>;
     public class Program {
-        public const decimal VERSION = 1.1m;
+        public const decimal VERSION = 1.2m;
 
         public const char LF = '\n';
         public const string CRLF = "\r\n";

@@ -194,8 +194,12 @@ namespace SendEML {
             }
         }
 
+        public static string ReplaceCrlfDot(string cmd) {
+            return cmd == $"{CRLF}." ? "<CRLF>." : cmd;
+        }
+
         public static void SendLine(Stream output, string cmd) {
-            Console.WriteLine(GetCurrentIdPrefix() + "send: " + ((cmd == $"{CRLF}.") ? "<CRLF>." : cmd));
+            Console.WriteLine(GetCurrentIdPrefix() + "send: " + ReplaceCrlfDot(cmd));
 
             var buf = Encoding.UTF8.GetBytes(cmd + CRLF);
             output.Write(buf, 0, buf.Length);
@@ -226,7 +230,7 @@ namespace SendEML {
             send("DATA");
         }
 
-        public static void SendCrLfDot(SendCmd send) {
+        public static void SendCrlfDot(SendCmd send) {
             send($"{CRLF}.");
         }
 
@@ -265,7 +269,7 @@ namespace SendEML {
                 SendRcptTo(send, settings.ToAddress);
                 SendData(send);
                 SendRawBytes(stream, file, settings.UpdateDate, settings.UpdateMessageId);
-                SendCrLfDot(send);
+                SendCrlfDot(send);
                 mail_sent = true;
             }
 

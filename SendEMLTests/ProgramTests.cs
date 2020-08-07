@@ -276,18 +276,22 @@ test";
         }
 
         [TestMethod()]
-        public void SendLineTest() {
-            void test(string cmd, string stdout_expected, string writer_expected) {
-                var mem_stream = new MemoryStream();
-                var send_line = GetStdout(() => {
-                    Program.SendLine(mem_stream, cmd);
-                });
-                Assert.AreEqual(stdout_expected, send_line);
-                Assert.AreEqual(writer_expected, Encoding.UTF8.GetString(mem_stream.ToArray()));
-            }
+        public void ReplaceCrlfDotTest() {
+            Assert.AreEqual("TEST", Program.ReplaceCrlfDot("TEST"));
+            Assert.AreEqual("CRLF", Program.ReplaceCrlfDot("CRLF"));
+            Assert.AreEqual(Program.CRLF, Program.ReplaceCrlfDot(Program.CRLF));
+            Assert.AreEqual(".", Program.ReplaceCrlfDot("."));
+            Assert.AreEqual("<CRLF>.", Program.ReplaceCrlfDot($"{Program.CRLF}."));
+        }
 
-            test("EHLO localhost", "send: EHLO localhost\r\n", "EHLO localhost\r\n");
-            test("\r\n.", "send: <CRLF>.\r\n", "\r\n.\r\n");
+        [TestMethod()]
+        public void SendLineTest() {
+            var mem_stream = new MemoryStream();
+            var send_line = GetStdout(() => {
+                Program.SendLine(mem_stream, "EHLO localhost");
+            });
+            Assert.AreEqual("send: EHLO localhost\r\n", send_line);
+            Assert.AreEqual("EHLO localhost\r\n", Encoding.UTF8.GetString(mem_stream.ToArray()));
         }
 
         SendCmd MakeTestSendCmd(string expected) {
@@ -325,8 +329,8 @@ test";
         }
 
         [TestMethod()]
-        public void SendCrLfDotTest() {
-            Program.SendCrLfDot(MakeTestSendCmd("\r\n."));
+        public void SendCrlfDotTest() {
+            Program.SendCrlfDot(MakeTestSendCmd("\r\n."));
         }
 
         [TestMethod()]

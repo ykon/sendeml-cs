@@ -17,7 +17,7 @@ using System.Threading.Tasks;
 namespace SendEML {
     using SendCmd = Func<string, string>;
     public class Program {
-        public const decimal VERSION = 1.2m;
+        public const double VERSION = 1.2;
 
         public const char LF = '\n';
         public const string CRLF = "\r\n";
@@ -66,14 +66,14 @@ namespace SendEML {
 
         public static ImmutableList<int> FindAllLfIndices(byte[] file_buf) {
             var indices = ImmutableList.CreateBuilder<int>();
-            var i = 0;
+            var offset = 0;
             while (true) {
-                i = FindLfIndex(file_buf, i);
-                if (i == -1)
+                var idx = FindLfIndex(file_buf, offset);
+                if (idx == -1)
                     return indices.ToImmutable();
 
-                indices.Add(i);
-                i += 1;
+                indices.Add(idx);
+                offset = idx + 1;
             }
         }
 
@@ -96,20 +96,18 @@ namespace SendEML {
             if (!update_date && !update_message_id)
                 return lines;
 
-            var reps_lines = lines.ToBuilder();
-
-            void ReplaceLine(bool update, Predicate<byte[]> match_line, Func<string> make_line) {
+            static void ReplaceLine(ImmutableList<byte[]>.Builder lines, bool update, Predicate<byte[]> match_line, Func<string> make_line) {
                 if (update) {
                     var idx = lines.FindIndex(match_line);
                     if (idx != -1)
-                        reps_lines[idx] = Encoding.UTF8.GetBytes(make_line());
+                        lines[idx] = Encoding.UTF8.GetBytes(make_line());
                 }
             }
 
-            ReplaceLine(update_date, IsDateLine, MakeNowDateLine);
-            ReplaceLine(update_message_id, IsMessageIdLine, MakeRandomMessageIdLine);
-
-            return reps_lines.ToImmutable();
+            var repl_lines = lines.ToBuilder();
+            ReplaceLine(repl_lines, update_date, IsDateLine, MakeNowDateLine);
+            ReplaceLine(repl_lines, update_message_id, IsMessageIdLine, MakeRandomMessageIdLine);
+            return repl_lines.ToImmutable();
         }
 
         public static byte[] ConcatRawLines(ImmutableList<byte[]> lines) {
@@ -184,7 +182,7 @@ namespace SendEML {
 
         public static string RecvLine(StreamReader reader) {
             while (true) {
-                var line = reader.ReadLine()?.Trim() ?? throw new IOException("Connection closed by foreign host.");
+                var line = reader.ReadLine()?.Trim() ?? throw new IOException("Connection closed by foreign host");
                 Console.WriteLine(GetCurrentIdPrefix() + $"recv: {line}");
 
                 if (IsLastReply(line)) {
@@ -324,6 +322,21 @@ namespace SendEML {
                 throw new IOException($"{key} key does not exist");
         }
 
+        public static void ProcJsonFile(string json_file) {
+            if (!File.Exists(json_file))
+                throw new IOException("Json file does not exist");
+
+            var settings = GetSettings(json_file);
+            CheckSettings(settings);
+
+            if (settings.UseParallel) {
+                useParallel = true;
+                settings.EmlFile.AsParallel().ForAll(f => SendOneMessage(settings, f));
+            } else {
+                SendMessages(settings, settings.EmlFile);
+            }
+        }
+
         static void Main(string[] args) {
             if (args.Length == 0) {
                 WriteUsage();
@@ -336,21 +349,8 @@ namespace SendEML {
             }
 
             foreach (var json_file in args) {
-                if (!File.Exists(json_file)) {
-                    Console.WriteLine($"{json_file}: Json file does not exist");
-                    continue;
-                }
-
                 try {
-                    var settings = GetSettings(json_file);
-                    CheckSettings(settings);
-
-                    if (settings.UseParallel) {
-                        useParallel = true;
-                        settings.EmlFile.AsParallel().ForAll(f => SendOneMessage(settings, f));
-                    } else {
-                        SendMessages(settings, settings.EmlFile);
-                    }
+                    ProcJsonFile(json_file);
                 } catch (Exception e) {
                     Console.WriteLine($"{json_file}: {e.Message}");
                 }

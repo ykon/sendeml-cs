@@ -359,7 +359,7 @@ test";
         }
 
         [TestMethod()]
-        public void CheckSettings() {
+        public void CheckSettingsTest() {
             static void checkNoKey(string key) {
                 var json = Program.MakeJsonSample();
                 var noKey = new Regex(key).Replace(json, $"X-{key}", 1);
@@ -377,6 +377,11 @@ test";
             } catch(Exception e) {
                 Assert.Fail("Expected no exception: " + e.Message);
             }
+        }
+
+        [TestMethod()]
+        public void ProcJsonFileTest() {
+            Assert.ThrowsException<IOException>(() => Program.ProcJsonFile("__test__"));
         }
     }
 }

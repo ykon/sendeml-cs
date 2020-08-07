@@ -131,9 +131,9 @@ namespace SendEML {
         }
 
         public static void SendRawBytes(Stream stream, string file, bool update_date, bool update_message_id) {
-            var path = Path.GetFullPath(file);
-            Console.WriteLine(GetCurrentIdPrefix() + $"send: {path}");
+            Console.WriteLine(GetCurrentIdPrefix() + $"send: {file}");
 
+            var path = Path.GetFullPath(file);
             var buf = ReplaceRawBytes(File.ReadAllBytes(path), update_date, update_message_id);
             stream.Write(buf, 0, buf.Length);
             stream.Flush();

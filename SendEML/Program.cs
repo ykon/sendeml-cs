@@ -194,16 +194,17 @@ namespace SendEML {
             }
         }
 
-        public static void SendLine(StreamWriter writer, string cmd) {
+        public static void SendLine(Stream output, string cmd) {
             Console.WriteLine(GetCurrentIdPrefix() + "send: " + ((cmd == $"{CRLF}.") ? "<CRLF>." : cmd));
 
-            writer.WriteLine(cmd);
-            writer.Flush();
+            var buf = Encoding.UTF8.GetBytes(cmd + CRLF);
+            output.Write(buf, 0, buf.Length);
+            output.Flush();
         }
 
-        public static SendCmd MakeSendCmd(StreamReader reader, StreamWriter writer) {
+        public static SendCmd MakeSendCmd(StreamReader reader) {
             return cmd => {
-                SendLine(writer, cmd);
+                SendLine(reader.BaseStream, cmd);
                 return RecvLine(reader);
             };
         }
@@ -243,10 +244,8 @@ namespace SendEML {
             stream.ReadTimeout = 1000;
 
             var reader = new StreamReader(stream);
-            var writer = new StreamWriter(stream) {
-                NewLine = CRLF
-            };
-            var send = MakeSendCmd(reader, writer);
+            var send = MakeSendCmd(reader);
+
             RecvLine(reader);
             SendHello(send);
 

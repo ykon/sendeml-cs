@@ -279,10 +279,8 @@ test";
         public void SendLineTest() {
             void test(string cmd, string stdout_expected, string writer_expected) {
                 var mem_stream = new MemoryStream();
-                var stream_writer = new StreamWriter(mem_stream);
-
                 var send_line = GetStdout(() => {
-                    Program.SendLine(stream_writer, cmd);
+                    Program.SendLine(mem_stream, cmd);
                 });
                 Assert.AreEqual(stdout_expected, send_line);
                 Assert.AreEqual(writer_expected, Encoding.UTF8.GetString(mem_stream.ToArray()));

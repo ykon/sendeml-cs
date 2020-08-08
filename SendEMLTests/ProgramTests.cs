@@ -177,6 +177,38 @@ test";
         }
 
         [TestMethod()]
+        public void CombineMailTest() {
+            var mail = Encoding.UTF8.GetBytes(MakeSimpleMail());
+            var (header, body) = Program.SplitMail(mail).Value;
+            var new_mail = Program.CombineMail(header, body);
+
+            Assert.IsTrue(mail.SequenceEqual(new_mail));
+        }
+
+        [TestMethod()]
+        public void FindEmptyLineTest() {
+            var mail = Encoding.UTF8.GetBytes(MakeSimpleMail());
+            Assert.AreEqual(414, Program.FindEmptyLine(mail));
+
+            var invalid_mail = Encoding.UTF8.GetBytes(MakeSimpleMail().Replace("\r\n\r\n", ""));
+            Assert.AreEqual(-1, Program.FindEmptyLine(invalid_mail));
+        }
+
+        [TestMethod()]
+        public void SplitMail() {
+            var mail = Encoding.UTF8.GetBytes(MakeSimpleMail());
+            var header_body = Program.SplitMail(mail);
+            Assert.IsTrue(header_body.HasValue);
+
+            var (header, body) = header_body.Value;
+            Assert.IsTrue(mail.Take(414).SequenceEqual(header));
+            Assert.IsTrue(mail.Skip(414 + 4).Take(4).SequenceEqual(body));
+
+            var invalid_mail = Encoding.UTF8.GetBytes(MakeSimpleMail().Replace("\r\n\r\n", ""));
+            Assert.IsFalse(Program.SplitMail(invalid_mail).HasValue);
+        }
+
+        [TestMethod()]
         public void ReplaceRawBytesTest() {
             var mail = Encoding.UTF8.GetBytes(MakeSimpleMail());
             var repl_mail_noupdate = Program.ReplaceRawBytes(mail, false, false);
@@ -186,6 +218,10 @@ test";
             var repl_mail = Program.ReplaceRawBytes(mail, true, true);
             Assert.AreNotEqual(mail, repl_mail);
             Assert.IsFalse(mail.SequenceEqual(repl_mail));
+            Assert.IsTrue(mail[^100..^0].SequenceEqual(repl_mail[^100..^0]));
+
+            var invalid_mail = Encoding.UTF8.GetBytes(MakeSimpleMail().Replace("\r\n\r\n", ""));
+            Assert.ThrowsException<IOException>(() => Program.ReplaceRawBytes(invalid_mail, true, true));
         }
 
         [TestMethod()]

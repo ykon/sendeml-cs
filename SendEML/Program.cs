@@ -19,7 +19,8 @@ namespace SendEML {
     public class Program {
         public const double VERSION = 1.2;
 
-        public const char LF = '\n';
+        public const byte CR = (byte)'\r';
+        public const byte LF = (byte)'\n';
         public const string CRLF = "\r\n";
 
         static readonly byte[] DATE_BYTES = Encoding.UTF8.GetBytes("Date:");
@@ -61,7 +62,7 @@ namespace SendEML {
         }
 
         public static int FindLfIndex(byte[] file_buf, int offset) {
-            return Array.IndexOf(file_buf, (byte)LF, offset);
+            return Array.IndexOf(file_buf, LF, offset);
         }
 
         public static ImmutableList<int> FindAllLfIndices(byte[] file_buf) {
@@ -120,8 +121,49 @@ namespace SendEML {
             return buf;
         }
 
+        public static readonly byte[] EMPTY_LINE = new[] { CR, LF, CR, LF };
+
+        public static byte[] CombineMail(byte[] header, byte[] body) {
+            var mail = new byte[header.Length + EMPTY_LINE.Length + body.Length];
+            Buffer.BlockCopy(header, 0, mail, 0, header.Length);
+            Buffer.BlockCopy(EMPTY_LINE, 0, mail, header.Length, EMPTY_LINE.Length);
+            Buffer.BlockCopy(body, 0, mail, header.Length + EMPTY_LINE.Length, body.Length);
+            return mail;
+        }
+
+        public static int FindEmptyLine(byte[] file_buf) {
+            var offset = 0;
+            while (true) {
+                var idx = Array.IndexOf(file_buf, CR, offset);
+                if (idx == -1 || (idx + 3) >= file_buf.Length)
+                    return -1;
+
+                if (file_buf[idx + 1] == LF && file_buf[idx + 2] == CR && file_buf[idx + 3] == LF)
+                    return idx;
+
+                offset = idx + 1;
+            }
+        }
+
+        public static (byte[], byte[])? SplitMail(byte[] file_buf) {
+            var idx = FindEmptyLine(file_buf);
+            if (idx == -1)
+                return null;
+
+            var header = CopyNew(file_buf, 0, idx);
+            var body_idx = idx + EMPTY_LINE.Length;
+            var body = CopyNew(file_buf, body_idx, file_buf.Length - body_idx);
+            return (header, body);
+        }
+
         public static byte[] ReplaceRawBytes(byte[] file_buf, bool update_date, bool update_message_id) {
-            return ConcatRawLines(ReplaceRawLines(GetRawLines(file_buf), update_date, update_message_id));
+            var mail = SplitMail(file_buf);
+            if (!mail.HasValue)
+                throw new IOException("Invalid mail");
+
+            var (header, body) = mail.Value;
+            var repl_header = ConcatRawLines(ReplaceRawLines(GetRawLines(header), update_date, update_message_id));
+            return CombineMail(repl_header, body);
         }
 
         static volatile bool USE_PARALLEL = false;

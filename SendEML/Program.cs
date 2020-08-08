@@ -124,10 +124,10 @@ namespace SendEML {
             return ConcatRawLines(ReplaceRawLines(GetRawLines(file_buf), update_date, update_message_id));
         }
 
-        static volatile bool useParallel = false;
+        static volatile bool USE_PARALLEL = false;
 
         public static string GetCurrentIdPrefix() {
-            return useParallel ? $"id: {Task.CurrentId}, " : "";
+            return USE_PARALLEL ? $"id: {Task.CurrentId}, " : "";
         }
 
         public static void SendRawBytes(Stream stream, string file, bool update_date, bool update_message_id) {
@@ -314,15 +314,18 @@ namespace SendEML {
         }
 
         public static void CheckSettings(Settings settings) {
-            var key = settings.SmtpHost == null ? "smtpHost"
-                : settings.SmtpPort == null ? "smtpPort"
-                : settings.FromAddress == null ? "fromAddress"
-                : settings.ToAddress == null ? "toAddress"
-                : settings.EmlFile == null ? "emlFile"
-                : "";
+            static string GetNullKey(Settings s) {
+                return s.SmtpHost == null ? "smtpHost"
+                    : s.SmtpPort == null ? "smtpPort"
+                    : s.FromAddress == null ? "fromAddress"
+                    : s.ToAddress == null ? "toAddress"
+                    : s.EmlFile == null ? "emlFile"
+                    : "";
+            }
 
-            if (key != "")
-                throw new IOException($"{key} key does not exist");
+            var null_key = GetNullKey(settings);
+            if (null_key != "")
+                throw new IOException($"{null_key} key does not exist");
         }
 
         public static void ProcJsonFile(string json_file) {
@@ -333,7 +336,7 @@ namespace SendEML {
             CheckSettings(settings);
 
             if (settings.UseParallel) {
-                useParallel = true;
+                USE_PARALLEL = true;
                 settings.EmlFile.AsParallel().ForAll(f => SendOneMessage(settings, f));
             } else {
                 SendMessages(settings, settings.EmlFile);

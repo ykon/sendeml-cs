@@ -97,9 +97,9 @@ namespace SendEML {
             return !update_date && !update_message_id;
         }
 
-        public static ImmutableList<byte[]> ReplaceRawLines(ImmutableList<byte[]> lines, bool update_date, bool update_message_id) {
+        public static byte[] ReplaceHeader(byte[] header, bool update_date, bool update_message_id) {
             if (IsNotUpdate(update_date, update_message_id))
-                return lines;
+                return header;
 
             static void ReplaceLine(ImmutableList<byte[]>.Builder lines, bool update, Predicate<byte[]> match_line, Func<string> make_line) {
                 if (update) {
@@ -109,10 +109,10 @@ namespace SendEML {
                 }
             }
 
-            var repl_lines = lines.ToBuilder();
+            var repl_lines = GetRawLines(header).ToBuilder();
             ReplaceLine(repl_lines, update_date, IsDateLine, MakeNowDateLine);
             ReplaceLine(repl_lines, update_message_id, IsMessageIdLine, MakeRandomMessageIdLine);
-            return repl_lines.ToImmutable();
+            return ConcatRawLines(repl_lines.ToImmutable());
         }
 
         public static byte[] ConcatRawLines(ImmutableList<byte[]> lines) {
@@ -169,7 +169,7 @@ namespace SendEML {
                 throw new IOException("Invalid mail");
 
             var (header, body) = mail.Value;
-            var repl_header = ConcatRawLines(ReplaceRawLines(GetRawLines(header), update_date, update_message_id));
+            var repl_header = ReplaceHeader(header, update_date, update_message_id);
             return CombineMail(repl_header, body);
         }
 

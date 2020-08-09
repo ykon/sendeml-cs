@@ -147,6 +147,14 @@ test";
         }
 
         [TestMethod()]
+        public void IsNotUpdateTest() {
+            Assert.IsFalse(Program.IsNotUpdate(true, true));
+            Assert.IsFalse(Program.IsNotUpdate(true, false));
+            Assert.IsFalse(Program.IsNotUpdate(false, true));
+            Assert.IsTrue(Program.IsNotUpdate(false, false));
+        }
+
+        [TestMethod()]
         public void ReplaceRawLinesTest() {
             var mail = Encoding.UTF8.GetBytes(MakeSimpleMail());
             var lines = Program.GetRawLines(mail);
@@ -212,8 +220,7 @@ test";
         public void ReplaceRawBytesTest() {
             var mail = Encoding.UTF8.GetBytes(MakeSimpleMail());
             var repl_mail_noupdate = Program.ReplaceRawBytes(mail, false, false);
-            Assert.AreNotEqual(mail, repl_mail_noupdate);
-            Assert.IsTrue(mail.SequenceEqual(repl_mail_noupdate));
+            Assert.AreEqual(mail, repl_mail_noupdate);
 
             var repl_mail = Program.ReplaceRawBytes(mail, true, true);
             Assert.AreNotEqual(mail, repl_mail);

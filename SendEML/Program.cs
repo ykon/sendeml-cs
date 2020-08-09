@@ -93,8 +93,12 @@ namespace SendEML {
             }).ToImmutableList();
         }
 
+        public static bool IsNotUpdate(bool update_date, bool update_message_id) {
+            return !update_date && !update_message_id;
+        }
+
         public static ImmutableList<byte[]> ReplaceRawLines(ImmutableList<byte[]> lines, bool update_date, bool update_message_id) {
-            if (!update_date && !update_message_id)
+            if (IsNotUpdate(update_date, update_message_id))
                 return lines;
 
             static void ReplaceLine(ImmutableList<byte[]>.Builder lines, bool update, Predicate<byte[]> match_line, Func<string> make_line) {
@@ -157,6 +161,9 @@ namespace SendEML {
         }
 
         public static byte[] ReplaceRawBytes(byte[] file_buf, bool update_date, bool update_message_id) {
+            if (IsNotUpdate(update_date, update_message_id))
+                return file_buf;
+
             var mail = SplitMail(file_buf);
             if (!mail.HasValue)
                 throw new IOException("Invalid mail");

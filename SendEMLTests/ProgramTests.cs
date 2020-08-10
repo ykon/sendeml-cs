@@ -129,6 +129,14 @@ test";
         }
 
         [TestMethod()]
+        public void FindCrIndexTest() {
+            var mail = MakeSimpleMailBytes();
+            Assert.AreEqual(33, Program.FindCrIndex(mail, 0));
+            Assert.AreEqual(48, Program.FindCrIndex(mail, 34));
+            Assert.AreEqual(74, Program.FindCrIndex(mail, 58));
+        }
+
+        [TestMethod()]
         public void FindLfIndexTest() {
             var mail = MakeSimpleMailBytes();
             Assert.AreEqual(34, Program.FindLfIndex(mail, 0));

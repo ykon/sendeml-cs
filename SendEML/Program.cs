@@ -61,6 +61,10 @@ namespace SendEML {
             return $"Message-ID: <{rand_str}>" + CRLF;
         }
 
+        public static int FindCrIndex(byte[] file_buf, int offset) {
+            return Array.IndexOf(file_buf, CR, offset);
+        }
+
         public static int FindLfIndex(byte[] file_buf, int offset) {
             return Array.IndexOf(file_buf, LF, offset);
         }
@@ -138,7 +142,7 @@ namespace SendEML {
         public static int FindEmptyLine(byte[] file_buf) {
             var offset = 0;
             while (true) {
-                var idx = Array.IndexOf(file_buf, CR, offset);
+                var idx = FindCrIndex(file_buf, offset);
                 if (idx == -1 || (idx + 3) >= file_buf.Length)
                     return -1;
 

@@ -230,11 +230,11 @@ test";
         }
 
         [TestMethod()]
-        public void ConcatRawLinesTest() {
+        public void ConcatBytesTest() {
             var mail = MakeSimpleMailBytes();
             var lines = Program.GetRawLines(mail);
 
-            var newMail = Program.ConcatRawLines(lines);
+            var newMail = Program.ConcatBytes(lines);
             CollectionAssert.AreEqual(mail, newMail);
         }
 

@@ -4,6 +4,7 @@
  */
 
 using System;
+using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Globalization;
 using System.IO;
@@ -101,6 +102,16 @@ namespace SendEML {
             return !updateDate && !updateMessageId;
         }
 
+        public static byte[] ConcatBytes(IEnumerable<byte[]> bytesList) {
+            var buf = new byte[bytesList.Sum(b => b.Length)];
+            var offset = 0;
+            foreach (var b in bytesList) {
+                Buffer.BlockCopy(b, 0, buf, offset, b.Length);
+                offset += b.Length;
+            }
+            return buf;
+        }
+
         public static byte[] ReplaceHeader(byte[] header, bool updateDate, bool updateMessageId) {
             if (IsNotUpdate(updateDate, updateMessageId))
                 return header;
@@ -116,27 +127,13 @@ namespace SendEML {
             var replLines = GetRawLines(header).ToBuilder();
             ReplaceLine(replLines, updateDate, IsDateLine, MakeNowDateLine);
             ReplaceLine(replLines, updateMessageId, IsMessageIdLine, MakeRandomMessageIdLine);
-            return ConcatRawLines(replLines.ToImmutable());
-        }
-
-        public static byte[] ConcatRawLines(ImmutableList<byte[]> lines) {
-            var buf = new byte[lines.Sum(l => l.Length)];
-            var offset = 0;
-            foreach (var l in lines) {
-                Buffer.BlockCopy(l, 0, buf, offset, l.Length);
-                offset += l.Length;
-            }
-            return buf;
+            return ConcatBytes(replLines.ToImmutable());
         }
 
         public static readonly byte[] EMPTY_LINE = new[] { CR, LF, CR, LF };
 
         public static byte[] CombineMail(byte[] header, byte[] body) {
-            var mail = new byte[header.Length + EMPTY_LINE.Length + body.Length];
-            Buffer.BlockCopy(header, 0, mail, 0, header.Length);
-            Buffer.BlockCopy(EMPTY_LINE, 0, mail, header.Length, EMPTY_LINE.Length);
-            Buffer.BlockCopy(body, 0, mail, header.Length + EMPTY_LINE.Length, body.Length);
-            return mail;
+            return ConcatBytes(new[] { header, EMPTY_LINE, body });
         }
 
         public static int FindEmptyLine(byte[] fileBuf) {

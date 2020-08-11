@@ -105,13 +105,13 @@ test";
         }
 
         string GetMessageIdLine(byte[] header) {
-            var header_str = Encoding.UTF8.GetString(header);
-            return Regex.Match(header_str, @"Message-ID: [\S]+\r\n").Value;
+            var headerStr = Encoding.UTF8.GetString(header);
+            return Regex.Match(headerStr, @"Message-ID: [\S]+\r\n").Value;
         }
 
         string GetDateLine(byte[] header) {
-            var header_str = Encoding.UTF8.GetString(header);
-            return Regex.Match(header_str, @"Date: [\S ]+\r\n").Value;
+            var headerStr = Encoding.UTF8.GetString(header);
+            return Regex.Match(headerStr, @"Date: [\S ]+\r\n").Value;
         }
 
         [TestMethod()]
@@ -201,32 +201,32 @@ test";
         [TestMethod()]
         public void ReplaceHeaderTest() {
             var (header, _) = Program.SplitMail(MakeSimpleMailBytes()).Value;
-            var date_line = GetDateLine(header);
-            var mid_line = GetMessageIdLine(header);
+            var dateLine = GetDateLine(header);
+            var midLine = GetMessageIdLine(header);
 
-            var repl_header_noupdate = Program.ReplaceHeader(header, false, false);
-            CollectionAssert.AreEqual(header, repl_header_noupdate);
+            var replHeaderNoupdate = Program.ReplaceHeader(header, false, false);
+            CollectionAssert.AreEqual(header, replHeaderNoupdate);
 
-            var repl_header = Program.ReplaceHeader(header, true, true);
-            CollectionAssert.AreNotEqual(header, repl_header);
+            var replHeader = Program.ReplaceHeader(header, true, true);
+            CollectionAssert.AreNotEqual(header, replHeader);
 
-            (string, string) Replace(bool update_date, bool update_message_id) {
-                var r_header = Program.ReplaceHeader(header, update_date, update_message_id);
-                CollectionAssert.AreNotEqual(header, r_header);
-                return (GetDateLine(r_header), GetMessageIdLine(r_header));
+            (string, string) Replace(bool updateDate, bool updateMessageId) {
+                var rHeader = Program.ReplaceHeader(header, updateDate, updateMessageId);
+                CollectionAssert.AreNotEqual(header, rHeader);
+                return (GetDateLine(rHeader), GetMessageIdLine(rHeader));
             }
 
-            var (r_date_line, r_mid_line) = Replace(true, true);
-            Assert.AreNotEqual(date_line, r_date_line);
-            Assert.AreNotEqual(mid_line, r_mid_line);
+            var (rDateLine, rMidLine) = Replace(true, true);
+            Assert.AreNotEqual(dateLine, rDateLine);
+            Assert.AreNotEqual(midLine, rMidLine);
 
-            var (r_date_line2, r_mid_line2) = Replace(true, false);
-            Assert.AreNotEqual(date_line, r_date_line2);
-            Assert.AreEqual(mid_line, r_mid_line2);
+            var (rDateLine2, rMidLine2) = Replace(true, false);
+            Assert.AreNotEqual(dateLine, rDateLine2);
+            Assert.AreEqual(midLine, rMidLine2);
 
-            var (r_date_line3, r_mid_line3) = Replace(false, true);
-            Assert.AreEqual(date_line, r_date_line3);
-            Assert.AreNotEqual(mid_line, r_mid_line3);
+            var (rDateLine3, rMidLine3) = Replace(false, true);
+            Assert.AreEqual(dateLine, rDateLine3);
+            Assert.AreNotEqual(midLine, rMidLine3);
         }
 
         [TestMethod()]
@@ -234,16 +234,16 @@ test";
             var mail = MakeSimpleMailBytes();
             var lines = Program.GetRawLines(mail);
 
-            var new_mail = Program.ConcatRawLines(lines);
-            CollectionAssert.AreEqual(mail, new_mail);
+            var newMail = Program.ConcatRawLines(lines);
+            CollectionAssert.AreEqual(mail, newMail);
         }
 
         [TestMethod()]
         public void CombineMailTest() {
             var mail = MakeSimpleMailBytes();
             var (header, body) = Program.SplitMail(mail).Value;
-            var new_mail = Program.CombineMail(header, body);
-            CollectionAssert.AreEqual(mail, new_mail);
+            var newMail = Program.CombineMail(header, body);
+            CollectionAssert.AreEqual(mail, newMail);
         }
 
         [TestMethod()]
@@ -251,37 +251,37 @@ test";
             var mail = MakeSimpleMailBytes();
             Assert.AreEqual(414, Program.FindEmptyLine(mail));
 
-            var invalid_mail = MakeInvalidMailBytes();
-            Assert.AreEqual(-1, Program.FindEmptyLine(invalid_mail));
+            var invalidMail = MakeInvalidMailBytes();
+            Assert.AreEqual(-1, Program.FindEmptyLine(invalidMail));
         }
 
         [TestMethod()]
         public void SplitMail() {
             var mail = MakeSimpleMailBytes();
-            var header_body = Program.SplitMail(mail);
-            Assert.IsTrue(header_body.HasValue);
+            var headerBody = Program.SplitMail(mail);
+            Assert.IsTrue(headerBody.HasValue);
 
-            var (header, body) = header_body.Value;
+            var (header, body) = headerBody.Value;
             CollectionAssert.AreEqual(mail.Take(414).ToArray(), header);
             CollectionAssert.AreEqual(mail.Skip(414 + 4).ToArray(), body);
 
-            var invalid_mail = MakeInvalidMailBytes();
-            Assert.IsFalse(Program.SplitMail(invalid_mail).HasValue);
+            var invalidMail = MakeInvalidMailBytes();
+            Assert.IsFalse(Program.SplitMail(invalidMail).HasValue);
         }
 
         [TestMethod()]
         public void ReplaceRawBytesTest() {
             var mail = MakeSimpleMailBytes();
-            var repl_mail_noupdate = Program.ReplaceRawBytes(mail, false, false);
-            Assert.AreEqual(mail, repl_mail_noupdate);
+            var replMailNoupdate = Program.ReplaceRawBytes(mail, false, false);
+            Assert.AreEqual(mail, replMailNoupdate);
 
-            var repl_mail = Program.ReplaceRawBytes(mail, true, true);
-            Assert.AreNotEqual(mail, repl_mail);
-            CollectionAssert.AreNotEqual(mail, repl_mail);
-            CollectionAssert.AreEqual(mail[^100..^0], repl_mail[^100..^0]);
+            var replMail = Program.ReplaceRawBytes(mail, true, true);
+            Assert.AreNotEqual(mail, replMail);
+            CollectionAssert.AreNotEqual(mail, replMail);
+            CollectionAssert.AreEqual(mail[^100..^0], replMail[^100..^0]);
 
-            var invalid_mail = MakeInvalidMailBytes();
-            Assert.ThrowsException<IOException>(() => Program.ReplaceRawBytes(invalid_mail, true, true));
+            var invalidMail = MakeInvalidMailBytes();
+            Assert.ThrowsException<IOException>(() => Program.ReplaceRawBytes(invalidMail, true, true));
         }
 
         [TestMethod()]
@@ -321,21 +321,21 @@ test";
         }
 
         void UseSetStdout(Action block) {
-            var orig_console = Console.Out;
+            var origConsole = Console.Out;
             try {
                 block();
             } finally {
-                Console.SetOut(orig_console);
+                Console.SetOut(origConsole);
             }
         }
 
         string GetStdout(Action block) {
-            var str_builder = new StringBuilder();
+            var strBuilder = new StringBuilder();
             UseSetStdout(() => {
-                Console.SetOut(new StringWriter(str_builder));
+                Console.SetOut(new StringWriter(strBuilder));
                 block();
             });
-            return str_builder.ToString();
+            return strBuilder.ToString();
         }
 
         [TestMethod()]
@@ -344,31 +344,31 @@ test";
             var mail = MakeSimpleMailBytes();
             File.WriteAllBytes(path, mail);
 
-            var mem_stream = new MemoryStream();
-            var send_line = GetStdout(() => {
-                Program.SendRawBytes(mem_stream, path, false, false);
+            var memStream = new MemoryStream();
+            var sendLine = GetStdout(() => {
+                Program.SendRawBytes(memStream, path, false, false);
             });
-            Assert.AreEqual($"send: {path}\r\n", send_line);
-            CollectionAssert.AreEqual(mail, mem_stream.ToArray());
+            Assert.AreEqual($"send: {path}\r\n", sendLine);
+            CollectionAssert.AreEqual(mail, memStream.ToArray());
 
-            var mem_stream2 = new MemoryStream();
-            Program.SendRawBytes(mem_stream2, path, true, true);
-            CollectionAssert.AreNotEqual(mail, mem_stream2.ToArray());
+            var memStream2 = new MemoryStream();
+            Program.SendRawBytes(memStream2, path, true, true);
+            CollectionAssert.AreNotEqual(mail, memStream2.ToArray());
         }
 
         [TestMethod()]
         public void RecvLineTest() {
-            var recv_line = GetStdout(() => {
-                var stream_reader = new StreamReader(new MemoryStream(Encoding.UTF8.GetBytes("250 OK\r\n")));
-                Assert.AreEqual("250 OK", Program.RecvLine(stream_reader));
+            var recvLine = GetStdout(() => {
+                var streamReader = new StreamReader(new MemoryStream(Encoding.UTF8.GetBytes("250 OK\r\n")));
+                Assert.AreEqual("250 OK", Program.RecvLine(streamReader));
             });
-            Assert.AreEqual("recv: 250 OK\r\n", recv_line);
+            Assert.AreEqual("recv: 250 OK\r\n", recvLine);
 
-            var stream_reader2 = new StreamReader(new MemoryStream());
-            Assert.ThrowsException<IOException>(() => Program.RecvLine(stream_reader2));
+            var streamReader2 = new StreamReader(new MemoryStream());
+            Assert.ThrowsException<IOException>(() => Program.RecvLine(streamReader2));
 
-            var stream_reader3 = new StreamReader(new MemoryStream(Encoding.UTF8.GetBytes("554 Transaction failed\r\n")));
-            Assert.ThrowsException<IOException>(() => Program.RecvLine(stream_reader3));
+            var streamReader3 = new StreamReader(new MemoryStream(Encoding.UTF8.GetBytes("554 Transaction failed\r\n")));
+            Assert.ThrowsException<IOException>(() => Program.RecvLine(streamReader3));
         }
 
         [TestMethod()]
@@ -382,12 +382,12 @@ test";
 
         [TestMethod()]
         public void SendLineTest() {
-            var mem_stream = new MemoryStream();
-            var send_line = GetStdout(() => {
-                Program.SendLine(mem_stream, "EHLO localhost");
+            var memStream = new MemoryStream();
+            var sendLine = GetStdout(() => {
+                Program.SendLine(memStream, "EHLO localhost");
             });
-            Assert.AreEqual("send: EHLO localhost\r\n", send_line);
-            Assert.AreEqual("EHLO localhost\r\n", Encoding.UTF8.GetString(mem_stream.ToArray()));
+            Assert.AreEqual("send: EHLO localhost\r\n", sendLine);
+            Assert.AreEqual("EHLO localhost\r\n", Encoding.UTF8.GetString(memStream.ToArray()));
         }
 
         SendCmd MakeTestSendCmd(string expected) {

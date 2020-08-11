@@ -57,23 +57,23 @@ namespace SendEML {
         public static string MakeRandomMessageIdLine() {
             const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
             const int length = 62;
-            var rand_str = new string(Enumerable.Repeat(chars, length).Select(s => s[random.Next(s.Length)]).ToArray());
-            return $"Message-ID: <{rand_str}>" + CRLF;
+            var randStr = new string(Enumerable.Repeat(chars, length).Select(s => s[random.Next(s.Length)]).ToArray());
+            return $"Message-ID: <{randStr}>" + CRLF;
         }
 
-        public static int FindCrIndex(byte[] file_buf, int offset) {
-            return Array.IndexOf(file_buf, CR, offset);
+        public static int FindCrIndex(byte[] buf, int offset) {
+            return Array.IndexOf(buf, CR, offset);
         }
 
-        public static int FindLfIndex(byte[] file_buf, int offset) {
-            return Array.IndexOf(file_buf, LF, offset);
+        public static int FindLfIndex(byte[] buf, int offset) {
+            return Array.IndexOf(buf, LF, offset);
         }
 
-        public static ImmutableList<int> FindAllLfIndices(byte[] file_buf) {
+        public static ImmutableList<int> FindAllLfIndices(byte[] buf) {
             var indices = ImmutableList.CreateBuilder<int>();
             var offset = 0;
             while (true) {
-                var idx = FindLfIndex(file_buf, offset);
+                var idx = FindLfIndex(buf, offset);
                 if (idx == -1)
                     return indices.ToImmutable();
 
@@ -82,41 +82,41 @@ namespace SendEML {
             }
         }
 
-        public static byte[] CopyNew(byte[] src_buf, int offset, int count) {
-            var dest_buf = new byte[count];
-            Buffer.BlockCopy(src_buf, offset, dest_buf, 0, dest_buf.Length);
-            return dest_buf;
+        public static byte[] CopyNew(byte[] srcBuf, int offset, int count) {
+            var destBuf = new byte[count];
+            Buffer.BlockCopy(srcBuf, offset, destBuf, 0, destBuf.Length);
+            return destBuf;
         }
 
-        public static ImmutableList<byte[]> GetRawLines(byte[] file_buf) {
+        public static ImmutableList<byte[]> GetRawLines(byte[] fileBuf) {
             var offset = 0;
-            return FindAllLfIndices(file_buf).Add(file_buf.Length - 1).Select(i => {
-                var line = CopyNew(file_buf, offset, i - offset + 1);
+            return FindAllLfIndices(fileBuf).Add(fileBuf.Length - 1).Select(i => {
+                var line = CopyNew(fileBuf, offset, i - offset + 1);
                 offset = i + 1;
                 return line;
             }).ToImmutableList();
         }
 
-        public static bool IsNotUpdate(bool update_date, bool update_message_id) {
-            return !update_date && !update_message_id;
+        public static bool IsNotUpdate(bool updateDate, bool updateMessageId) {
+            return !updateDate && !updateMessageId;
         }
 
-        public static byte[] ReplaceHeader(byte[] header, bool update_date, bool update_message_id) {
-            if (IsNotUpdate(update_date, update_message_id))
+        public static byte[] ReplaceHeader(byte[] header, bool updateDate, bool updateMessageId) {
+            if (IsNotUpdate(updateDate, updateMessageId))
                 return header;
 
-            static void ReplaceLine(ImmutableList<byte[]>.Builder lines, bool update, Predicate<byte[]> match_line, Func<string> make_line) {
+            static void ReplaceLine(ImmutableList<byte[]>.Builder lines, bool update, Predicate<byte[]> matchLine, Func<string> makeLine) {
                 if (update) {
-                    var idx = lines.FindIndex(match_line);
+                    var idx = lines.FindIndex(matchLine);
                     if (idx != -1)
-                        lines[idx] = Encoding.UTF8.GetBytes(make_line());
+                        lines[idx] = Encoding.UTF8.GetBytes(makeLine());
                 }
             }
 
-            var repl_lines = GetRawLines(header).ToBuilder();
-            ReplaceLine(repl_lines, update_date, IsDateLine, MakeNowDateLine);
-            ReplaceLine(repl_lines, update_message_id, IsMessageIdLine, MakeRandomMessageIdLine);
-            return ConcatRawLines(repl_lines.ToImmutable());
+            var replLines = GetRawLines(header).ToBuilder();
+            ReplaceLine(replLines, updateDate, IsDateLine, MakeNowDateLine);
+            ReplaceLine(replLines, updateMessageId, IsMessageIdLine, MakeRandomMessageIdLine);
+            return ConcatRawLines(replLines.ToImmutable());
         }
 
         public static byte[] ConcatRawLines(ImmutableList<byte[]> lines) {
@@ -139,42 +139,42 @@ namespace SendEML {
             return mail;
         }
 
-        public static int FindEmptyLine(byte[] file_buf) {
+        public static int FindEmptyLine(byte[] fileBuf) {
             var offset = 0;
             while (true) {
-                var idx = FindCrIndex(file_buf, offset);
-                if (idx == -1 || (idx + 3) >= file_buf.Length)
+                var idx = FindCrIndex(fileBuf, offset);
+                if (idx == -1 || (idx + 3) >= fileBuf.Length)
                     return -1;
 
-                if (file_buf[idx + 1] == LF && file_buf[idx + 2] == CR && file_buf[idx + 3] == LF)
+                if (fileBuf[idx + 1] == LF && fileBuf[idx + 2] == CR && fileBuf[idx + 3] == LF)
                     return idx;
 
                 offset = idx + 1;
             }
         }
 
-        public static (byte[], byte[])? SplitMail(byte[] file_buf) {
-            var idx = FindEmptyLine(file_buf);
+        public static (byte[], byte[])? SplitMail(byte[] fileBuf) {
+            var idx = FindEmptyLine(fileBuf);
             if (idx == -1)
                 return null;
 
-            var header = CopyNew(file_buf, 0, idx);
-            var body_idx = idx + EMPTY_LINE.Length;
-            var body = CopyNew(file_buf, body_idx, file_buf.Length - body_idx);
+            var header = CopyNew(fileBuf, 0, idx);
+            var bodyIdx = idx + EMPTY_LINE.Length;
+            var body = CopyNew(fileBuf, bodyIdx, fileBuf.Length - bodyIdx);
             return (header, body);
         }
 
-        public static byte[] ReplaceRawBytes(byte[] file_buf, bool update_date, bool update_message_id) {
-            if (IsNotUpdate(update_date, update_message_id))
-                return file_buf;
+        public static byte[] ReplaceRawBytes(byte[] fileBuf, bool updateDate, bool updateMessageId) {
+            if (IsNotUpdate(updateDate, updateMessageId))
+                return fileBuf;
 
-            var mail = SplitMail(file_buf);
+            var mail = SplitMail(fileBuf);
             if (!mail.HasValue)
                 throw new IOException("Invalid mail");
 
             var (header, body) = mail.Value;
-            var repl_header = ReplaceHeader(header, update_date, update_message_id);
-            return CombineMail(repl_header, body);
+            var replHeader = ReplaceHeader(header, updateDate, updateMessageId);
+            return CombineMail(replHeader, body);
         }
 
         static volatile bool USE_PARALLEL = false;
@@ -183,11 +183,11 @@ namespace SendEML {
             return USE_PARALLEL ? $"id: {Task.CurrentId}, " : "";
         }
 
-        public static void SendRawBytes(Stream stream, string file, bool update_date, bool update_message_id) {
+        public static void SendRawBytes(Stream stream, string file, bool updateDate, bool updateMessageId) {
             Console.WriteLine(GetCurrentIdPrefix() + $"send: {file}");
 
             var path = Path.GetFullPath(file);
-            var buf = ReplaceRawBytes(File.ReadAllBytes(path), update_date, update_message_id);
+            var buf = ReplaceRawBytes(File.ReadAllBytes(path), updateDate, updateMessageId);
             stream.Write(buf, 0, buf.Length);
             stream.Flush();
         }
@@ -270,12 +270,12 @@ namespace SendEML {
             send("EHLO localhost");
         }
 
-        public static void SendFrom(SendCmd send, string from_addr) {
-            send($"MAIL FROM: <{from_addr}>");
+        public static void SendFrom(SendCmd send, string fromAddr) {
+            send($"MAIL FROM: <{fromAddr}>");
         }
 
-        public static void SendRcptTo(SendCmd send, ImmutableList<string> to_addrs) {
-            foreach (var addr in to_addrs)
+        public static void SendRcptTo(SendCmd send, ImmutableList<string> toAddrs) {
+            foreach (var addr in toAddrs)
                 send($"RCPT TO: <{addr}>");
         }
 
@@ -295,7 +295,7 @@ namespace SendEML {
             send("RSET");
         }
 
-        public static void SendMessages(Settings settings, ImmutableList<string> eml_files) {
+        public static void SendMessages(Settings settings, ImmutableList<string> emlFiles) {
             using var socket = new TcpClient(settings.SmtpHost, (int)settings.SmtpPort!);
             var stream = socket.GetStream();
             stream.ReadTimeout = 1000;
@@ -306,14 +306,14 @@ namespace SendEML {
             RecvLine(reader);
             SendHello(send);
 
-            var mail_sent = false;
-            foreach (var file in eml_files) {
+            var mailSent = false;
+            foreach (var file in emlFiles) {
                 if (!File.Exists(file)) {
                     Console.WriteLine($"{file}: EML file does not exist");
                     continue;
                 }
 
-                if (mail_sent) {
+                if (mailSent) {
                     Console.WriteLine("---");
                     SendRset(send);
                 }
@@ -323,7 +323,7 @@ namespace SendEML {
                 SendData(send);
                 SendRawBytes(stream, file, settings.UpdateDate, settings.UpdateMessageId);
                 SendCrlfDot(send);
-                mail_sent = true;
+                mailSent = true;
             }
 
             SendQuit(send);
@@ -376,16 +376,16 @@ namespace SendEML {
                     : "";
             }
 
-            var null_key = GetNullKey(settings);
-            if (null_key != "")
-                throw new IOException($"{null_key} key does not exist");
+            var key = GetNullKey(settings);
+            if (key != "")
+                throw new IOException($"{key} key does not exist");
         }
 
-        public static void ProcJsonFile(string json_file) {
-            if (!File.Exists(json_file))
+        public static void ProcJsonFile(string jsonFile) {
+            if (!File.Exists(jsonFile))
                 throw new IOException("Json file does not exist");
 
-            var settings = GetSettings(json_file);
+            var settings = GetSettings(jsonFile);
             CheckSettings(settings);
 
             if (settings.UseParallel) {
@@ -407,11 +407,11 @@ namespace SendEML {
                 return;
             }
 
-            foreach (var json_file in args) {
+            foreach (var jsonFile in args) {
                 try {
-                    ProcJsonFile(json_file);
+                    ProcJsonFile(jsonFile);
                 } catch (Exception e) {
-                    Console.WriteLine($"{json_file}: {e.Message}");
+                    Console.WriteLine($"{jsonFile}: {e.Message}");
                 }
             }
         }

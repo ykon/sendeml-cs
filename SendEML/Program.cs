@@ -22,6 +22,8 @@ namespace SendEML {
 
         public const byte CR = (byte)'\r';
         public const byte LF = (byte)'\n';
+        public const byte SPACE = (byte)' ';
+        public const byte HTAB = (byte)'\t';
         public const string CRLF = "\r\n";
 
         static readonly byte[] DATE_BYTES = Encoding.UTF8.GetBytes("Date:");
@@ -112,15 +114,34 @@ namespace SendEML {
             return buf;
         }
 
+        public static bool IsWsp(byte b) {
+            return b == SPACE || b == HTAB;
+        }
+
+        public static bool IsFirstWsp(byte[] bytes) {
+            return IsWsp(bytes.FirstOrDefault());
+        }
+
         public static byte[] ReplaceHeader(byte[] header, bool updateDate, bool updateMessageId) {
             if (IsNotUpdate(updateDate, updateMessageId))
                 return header;
 
+            static void RemoveFolding(ImmutableList<byte[]>.Builder lines, int idx) {
+                for (var i = idx; i < lines.Count; i++) {
+                    if (IsFirstWsp(lines[i]))
+                        lines[i] = new byte[0];
+                    else
+                        break;
+                }
+            }
+
             static void ReplaceLine(ImmutableList<byte[]>.Builder lines, bool update, Predicate<byte[]> matchLine, Func<string> makeLine) {
                 if (update) {
                     var idx = lines.FindIndex(matchLine);
-                    if (idx != -1)
+                    if (idx != -1) {
                         lines[idx] = Encoding.UTF8.GetBytes(makeLine());
+                        RemoveFolding(lines, idx + 1);
+                    }
                 }
             }
 

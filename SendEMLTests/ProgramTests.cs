@@ -92,6 +92,25 @@ Content-Language: en-US
 test";
         }
 
+        string MakeFoldedMail() {
+            return @"From: a001 <a001@ah62.example.jp>
+Subject: test
+To: a002@ah62.example.jp
+Message-ID:
+ <b0e564a5-4f70-761a-e103-70119d1bcb32@ah62.example.jp>
+Date:
+ Sun, 26 Jul 2020
+ 22:01:37 +0900
+User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:78.0) Gecko/20100101
+ Thunderbird/78.0.1
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8; format=flowed
+Content-Transfer-Encoding: 7bit
+Content-Language: en-US
+
+test";
+        }
+
         byte[] MakeSimpleMailBytes() {
             return Encoding.UTF8.GetBytes(MakeSimpleMail());
         }
@@ -104,28 +123,32 @@ test";
             return Encoding.UTF8.GetBytes(MakeInvalidMail());
         }
 
-        string GetMessageIdLine(byte[] header) {
+        byte[] MakeFoldedMailBytes() {
+            return Encoding.UTF8.GetBytes(MakeFoldedMail());
+        }
+
+        string GetHeaderLine(byte[] header, string name) {
             var headerStr = Encoding.UTF8.GetString(header);
-            return Regex.Match(headerStr, @"Message-ID: [\S]+\r\n").Value;
+            return Regex.Match(headerStr, name + @":[\s\S]+?\r\n(?=[^ \t])").Value;
+        }
+
+        string GetMessageIdLine(byte[] header) {
+            return GetHeaderLine(header, "Message-ID");
         }
 
         string GetDateLine(byte[] header) {
-            var headerStr = Encoding.UTF8.GetString(header);
-            return Regex.Match(headerStr, @"Date: [\S ]+\r\n").Value;
+            return GetHeaderLine(header, "Date");
         }
 
         [TestMethod()]
-        public void GetMessageIdLineTest() {
+        public void GetHeaderLineTest() {
             var mail = MakeSimpleMailBytes();
-            var (header, _) = Program.SplitMail(mail).Value;
-            Assert.AreEqual("Message-ID: <b0e564a5-4f70-761a-e103-70119d1bcb32@ah62.example.jp>\r\n", GetMessageIdLine(header));
-        }
+            Assert.AreEqual("Message-ID: <b0e564a5-4f70-761a-e103-70119d1bcb32@ah62.example.jp>\r\n", GetHeaderLine(mail, "Message-ID"));
+            Assert.AreEqual("Date: Sun, 26 Jul 2020 22:01:37 +0900\r\n", GetHeaderLine(mail, "Date"));
 
-        [TestMethod()]
-        public void GetDateLineTest() {
-            var mail = MakeSimpleMailBytes();
-            var (header, _) = Program.SplitMail(mail).Value;
-            Assert.AreEqual("Date: Sun, 26 Jul 2020 22:01:37 +0900\r\n", GetDateLine(header));
+            var foldedMail = MakeFoldedMailBytes();
+            Assert.AreEqual("Message-ID:\r\n <b0e564a5-4f70-761a-e103-70119d1bcb32@ah62.example.jp>\r\n", GetHeaderLine(foldedMail, "Message-ID"));
+            Assert.AreEqual("Date:\r\n Sun, 26 Jul 2020\r\n 22:01:37 +0900\r\n", GetHeaderLine(foldedMail, "Date"));
         }
 
         [TestMethod()]
@@ -199,6 +222,24 @@ test";
         }
 
         [TestMethod()]
+        public void IsWspTest() {
+            Assert.IsTrue(Program.IsWsp((byte)' '));
+            Assert.IsTrue(Program.IsWsp((byte)'\t'));
+            Assert.IsFalse(Program.IsWsp((byte)'\0'));
+            Assert.IsFalse(Program.IsWsp((byte)'a'));
+            Assert.IsFalse(Program.IsWsp((byte)'b'));
+        }
+
+        [TestMethod()]
+        public void IsFirstWspTest() {
+            Assert.IsTrue(Program.IsFirstWsp(new[] { (byte)' ', (byte)'a', (byte)'b' }));
+            Assert.IsTrue(Program.IsFirstWsp(new[] { (byte)'\t', (byte)'a', (byte)'b' }));
+            Assert.IsFalse(Program.IsFirstWsp(new[] { (byte)'\0', (byte)'a', (byte)'b' }));
+            Assert.IsFalse(Program.IsFirstWsp(new[] { (byte)'a', (byte)'b', (byte)' ' }));
+            Assert.IsFalse(Program.IsFirstWsp(new[] { (byte)'a', (byte)'b', (byte)'\t' }));
+        }
+
+        [TestMethod()]
         public void ReplaceHeaderTest() {
             var (header, _) = Program.SplitMail(MakeSimpleMailBytes()).Value;
             var dateLine = GetDateLine(header);
@@ -210,23 +251,28 @@ test";
             var replHeader = Program.ReplaceHeader(header, true, true);
             CollectionAssert.AreNotEqual(header, replHeader);
 
-            (string, string) Replace(bool updateDate, bool updateMessageId) {
+            (string, string) Replace(byte[] header, bool updateDate, bool updateMessageId) {
                 var rHeader = Program.ReplaceHeader(header, updateDate, updateMessageId);
                 CollectionAssert.AreNotEqual(header, rHeader);
                 return (GetDateLine(rHeader), GetMessageIdLine(rHeader));
             }
 
-            var (rDateLine, rMidLine) = Replace(true, true);
+            var (rDateLine, rMidLine) = Replace(header, true, true);
             Assert.AreNotEqual(dateLine, rDateLine);
             Assert.AreNotEqual(midLine, rMidLine);
 
-            var (rDateLine2, rMidLine2) = Replace(true, false);
+            var (rDateLine2, rMidLine2) = Replace(header, true, false);
             Assert.AreNotEqual(dateLine, rDateLine2);
             Assert.AreEqual(midLine, rMidLine2);
 
-            var (rDateLine3, rMidLine3) = Replace(false, true);
+            var (rDateLine3, rMidLine3) = Replace(header, false, true);
             Assert.AreEqual(dateLine, rDateLine3);
             Assert.AreNotEqual(midLine, rMidLine3);
+
+            var (foldedHeader, _) = Program.SplitMail(MakeFoldedMailBytes()).Value;
+            var (fDateLine, fMidLine) = Replace(foldedHeader, true, true);
+            Assert.AreEqual(1, fDateLine.Count(c => c == '\n'));
+            Assert.AreEqual(1, fMidLine.Count(c => c == '\n'));
         }
 
         [TestMethod()]

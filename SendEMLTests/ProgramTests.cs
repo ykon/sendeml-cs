@@ -76,7 +76,7 @@ namespace SendEML.Tests {
             Assert.IsTrue(line.Length <= 80);
         }
 
-        string MakeSimpleMail() {
+        string MakeSimpleMailText() {
             return @"From: a001 <a001@ah62.example.jp>
 Subject: test
 To: a002@ah62.example.jp
@@ -92,8 +92,8 @@ Content-Language: en-US
 test";
         }
 
-        string MakeFoldedMail() {
-            return @"From: a001 <a001@ah62.example.jp>
+        byte[] MakeFoldedMail() {
+            var text = @"From: a001 <a001@ah62.example.jp>
 Subject: test
 To: a002@ah62.example.jp
 Message-ID:
@@ -109,27 +109,58 @@ Content-Transfer-Encoding: 7bit
 Content-Language: en-US
 
 test";
+            return Encoding.UTF8.GetBytes(text);
         }
 
-        byte[] MakeSimpleMailBytes() {
-            return Encoding.UTF8.GetBytes(MakeSimpleMail());
+        byte[] MakeFoldedEndDate() {
+            var text = @"From: a001 <a001@ah62.example.jp>
+Subject: test
+To: a002@ah62.example.jp
+Message-ID:
+ <b0e564a5-4f70-761a-e103-70119d1bcb32@ah62.example.jp>
+User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:78.0) Gecko/20100101
+ Thunderbird/78.0.1
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8; format=flowed
+Content-Transfer-Encoding: 7bit
+Content-Language: en-US
+Date:
+ Sun, 26 Jul 2020
+ 22:01:37 +0900
+";
+            return Encoding.UTF8.GetBytes(text);
         }
 
-        string MakeInvalidMail() {
-            return MakeSimpleMail().Replace("\r\n\r\n", "");
+        byte[] MakeFoldedEndMessageId() {
+            var text = @"From: a001 <a001@ah62.example.jp>
+Subject: test
+To: a002@ah62.example.jp
+User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:78.0) Gecko/20100101
+ Thunderbird/78.0.1
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8; format=flowed
+Content-Transfer-Encoding: 7bit
+Content-Language: en-US
+Date:
+ Sun, 26 Jul 2020
+ 22:01:37 +0900
+Message-ID:
+ <b0e564a5-4f70-761a-e103-70119d1bcb32@ah62.example.jp>
+";
+            return Encoding.UTF8.GetBytes(text);
         }
 
-        byte[] MakeInvalidMailBytes() {
-            return Encoding.UTF8.GetBytes(MakeInvalidMail());
+        byte[] MakeSimpleMail() {
+            return Encoding.UTF8.GetBytes(MakeSimpleMailText());
         }
 
-        byte[] MakeFoldedMailBytes() {
-            return Encoding.UTF8.GetBytes(MakeFoldedMail());
+        byte[] MakeInvalidMail() {
+            return Encoding.UTF8.GetBytes(MakeSimpleMailText().Replace("\r\n\r\n", ""));
         }
 
         string GetHeaderLine(byte[] header, string name) {
             var headerStr = Encoding.UTF8.GetString(header);
-            return Regex.Match(headerStr, name + @":[\s\S]+?\r\n(?=[^ \t])").Value;
+            return Regex.Match(headerStr, name + @":[\s\S]+?\r\n(?=([^ \t]|$))").Value;
         }
 
         string GetMessageIdLine(byte[] header) {
@@ -142,18 +173,24 @@ test";
 
         [TestMethod()]
         public void GetHeaderLineTest() {
-            var mail = MakeSimpleMailBytes();
-            Assert.AreEqual("Message-ID: <b0e564a5-4f70-761a-e103-70119d1bcb32@ah62.example.jp>\r\n", GetHeaderLine(mail, "Message-ID"));
+            var mail = MakeSimpleMail();
             Assert.AreEqual("Date: Sun, 26 Jul 2020 22:01:37 +0900\r\n", GetHeaderLine(mail, "Date"));
+            Assert.AreEqual("Message-ID: <b0e564a5-4f70-761a-e103-70119d1bcb32@ah62.example.jp>\r\n", GetHeaderLine(mail, "Message-ID"));
 
-            var foldedMail = MakeFoldedMailBytes();
-            Assert.AreEqual("Message-ID:\r\n <b0e564a5-4f70-761a-e103-70119d1bcb32@ah62.example.jp>\r\n", GetHeaderLine(foldedMail, "Message-ID"));
+            var foldedMail = MakeFoldedMail();
             Assert.AreEqual("Date:\r\n Sun, 26 Jul 2020\r\n 22:01:37 +0900\r\n", GetHeaderLine(foldedMail, "Date"));
+            Assert.AreEqual("Message-ID:\r\n <b0e564a5-4f70-761a-e103-70119d1bcb32@ah62.example.jp>\r\n", GetHeaderLine(foldedMail, "Message-ID"));
+
+            var endDate = MakeFoldedEndDate();
+            Assert.AreEqual("Date:\r\n Sun, 26 Jul 2020\r\n 22:01:37 +0900\r\n", GetHeaderLine(endDate, "Date"));
+
+            var endMessageId = MakeFoldedEndMessageId();
+            Assert.AreEqual("Message-ID:\r\n <b0e564a5-4f70-761a-e103-70119d1bcb32@ah62.example.jp>\r\n", GetHeaderLine(endMessageId, "Message-ID"));
         }
 
         [TestMethod()]
         public void FindCrIndexTest() {
-            var mail = MakeSimpleMailBytes();
+            var mail = MakeSimpleMail();
             Assert.AreEqual(33, Program.FindCrIndex(mail, 0));
             Assert.AreEqual(48, Program.FindCrIndex(mail, 34));
             Assert.AreEqual(74, Program.FindCrIndex(mail, 58));
@@ -161,7 +198,7 @@ test";
 
         [TestMethod()]
         public void FindLfIndexTest() {
-            var mail = MakeSimpleMailBytes();
+            var mail = MakeSimpleMail();
             Assert.AreEqual(34, Program.FindLfIndex(mail, 0));
             Assert.AreEqual(49, Program.FindLfIndex(mail, 35));
             Assert.AreEqual(75, Program.FindLfIndex(mail, 59));
@@ -169,7 +206,7 @@ test";
 
         [TestMethod()]
         public void FindAllLfIndicesTest() {
-            var mail = MakeSimpleMailBytes();
+            var mail = MakeSimpleMail();
             var indices = Program.FindAllLfIndices(mail);
 
             Assert.AreEqual(34, indices[0]);
@@ -183,7 +220,7 @@ test";
 
         [TestMethod()]
         public void CopyNewTest() {
-            var mail = MakeSimpleMailBytes();
+            var mail = MakeSimpleMail();
 
             var buf = Program.CopyNew(mail, 0, 10);
             Assert.AreEqual(10, buf.Length);
@@ -200,7 +237,7 @@ test";
 
         [TestMethod()]
         public void GetRawLinesTest() {
-            var mail = MakeSimpleMailBytes();
+            var mail = MakeSimpleMail();
             var lines = Program.GetRawLines(mail);
 
             Assert.AreEqual(13, lines.Count);
@@ -241,7 +278,7 @@ test";
 
         [TestMethod()]
         public void ReplaceHeaderTest() {
-            var (header, _) = Program.SplitMail(MakeSimpleMailBytes()).Value;
+            var (header, _) = Program.SplitMail(MakeSimpleMail()).Value;
             var dateLine = GetDateLine(header);
             var midLine = GetMessageIdLine(header);
 
@@ -269,7 +306,7 @@ test";
             Assert.AreEqual(dateLine, rDateLine3);
             Assert.AreNotEqual(midLine, rMidLine3);
 
-            var (foldedHeader, _) = Program.SplitMail(MakeFoldedMailBytes()).Value;
+            var (foldedHeader, _) = Program.SplitMail(MakeFoldedMail()).Value;
             var (fDateLine, fMidLine) = Replace(foldedHeader, true, true);
             Assert.AreEqual(1, fDateLine.Count(c => c == '\n'));
             Assert.AreEqual(1, fMidLine.Count(c => c == '\n'));
@@ -277,7 +314,7 @@ test";
 
         [TestMethod()]
         public void ConcatBytesTest() {
-            var mail = MakeSimpleMailBytes();
+            var mail = MakeSimpleMail();
             var lines = Program.GetRawLines(mail);
 
             var newMail = Program.ConcatBytes(lines);
@@ -286,7 +323,7 @@ test";
 
         [TestMethod()]
         public void CombineMailTest() {
-            var mail = MakeSimpleMailBytes();
+            var mail = MakeSimpleMail();
             var (header, body) = Program.SplitMail(mail).Value;
             var newMail = Program.CombineMail(header, body);
             CollectionAssert.AreEqual(mail, newMail);
@@ -294,16 +331,16 @@ test";
 
         [TestMethod()]
         public void FindEmptyLineTest() {
-            var mail = MakeSimpleMailBytes();
+            var mail = MakeSimpleMail();
             Assert.AreEqual(414, Program.FindEmptyLine(mail));
 
-            var invalidMail = MakeInvalidMailBytes();
+            var invalidMail = MakeInvalidMail();
             Assert.AreEqual(-1, Program.FindEmptyLine(invalidMail));
         }
 
         [TestMethod()]
         public void SplitMail() {
-            var mail = MakeSimpleMailBytes();
+            var mail = MakeSimpleMail();
             var headerBody = Program.SplitMail(mail);
             Assert.IsTrue(headerBody.HasValue);
 
@@ -311,13 +348,13 @@ test";
             CollectionAssert.AreEqual(mail.Take(414).ToArray(), header);
             CollectionAssert.AreEqual(mail.Skip(414 + 4).ToArray(), body);
 
-            var invalidMail = MakeInvalidMailBytes();
+            var invalidMail = MakeInvalidMail();
             Assert.IsFalse(Program.SplitMail(invalidMail).HasValue);
         }
 
         [TestMethod()]
         public void ReplaceRawBytesTest() {
-            var mail = MakeSimpleMailBytes();
+            var mail = MakeSimpleMail();
             var replMailNoupdate = Program.ReplaceRawBytes(mail, false, false);
             Assert.AreEqual(mail, replMailNoupdate);
 
@@ -326,7 +363,7 @@ test";
             CollectionAssert.AreNotEqual(mail, replMail);
             CollectionAssert.AreEqual(mail[^100..^0], replMail[^100..^0]);
 
-            var invalidMail = MakeInvalidMailBytes();
+            var invalidMail = MakeInvalidMail();
             Assert.ThrowsException<IOException>(() => Program.ReplaceRawBytes(invalidMail, true, true));
         }
 
@@ -387,7 +424,7 @@ test";
         [TestMethod()]
         public void SendRawBytesTest() {
             var path = Path.GetTempFileName();
-            var mail = MakeSimpleMailBytes();
+            var mail = MakeSimpleMail();
             File.WriteAllBytes(path, mail);
 
             var memStream = new MemoryStream();

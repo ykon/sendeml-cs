@@ -145,10 +145,10 @@ namespace SendEML {
                 }
             }
 
-            var replLines = GetRawLines(header).ToBuilder();
-            ReplaceLine(replLines, updateDate, IsDateLine, MakeNowDateLine);
-            ReplaceLine(replLines, updateMessageId, IsMessageIdLine, MakeRandomMessageIdLine);
-            return ConcatBytes(replLines.ToImmutable());
+            var lines = GetRawLines(header).ToBuilder();
+            ReplaceLine(lines, updateDate, IsDateLine, MakeNowDateLine);
+            ReplaceLine(lines, updateMessageId, IsMessageIdLine, MakeRandomMessageIdLine);
+            return ConcatBytes(lines.ToImmutable());
         }
 
         public static readonly byte[] EMPTY_LINE = new[] { CR, LF, CR, LF };

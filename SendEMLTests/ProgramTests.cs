@@ -14,12 +14,22 @@ using System.Text.RegularExpressions;
 namespace SendEML.Tests {
     using SendCmd = Func<string, string>;
 
+    public static class Extensions {
+        public static byte[] ToBytes(this string str) {
+            return Encoding.UTF8.GetBytes(str);
+        }
+
+        public static string ToUtf8String(this byte[] bytes) {
+            return Encoding.UTF8.GetString(bytes);
+        }
+    }
+
     [TestClass()]
     public class ProgramTests {
         [TestMethod()]
         public void MatchHeaderFieldTest() {
             Func<string, string, bool> test =
-                (s1, s2) => Program.MatchHeaderField(Encoding.UTF8.GetBytes(s1), Encoding.UTF8.GetBytes(s2));
+                (s1, s2) => Program.MatchHeaderField(s1.ToBytes(), s2.ToBytes());
 
             Assert.IsTrue(test("Test:", "Test:"));
             Assert.IsTrue(test("Test: ", "Test:"));
@@ -32,7 +42,7 @@ namespace SendEML.Tests {
 
         [TestMethod()]
         public void IsDateLineTest() {
-            Func<string, bool> test = s => Program.IsDateLine(Encoding.UTF8.GetBytes(s));
+            Func<string, bool> test = s => Program.IsDateLine(s.ToBytes());
 
             Assert.IsTrue(test("Date: xxx"));
             Assert.IsTrue(test("Date:xxx"));
@@ -55,7 +65,7 @@ namespace SendEML.Tests {
 
         [TestMethod()]
         public void IsMessageIdLineTest() {
-            Func<string, bool> test = s => Program.IsMessageIdLine(Encoding.UTF8.GetBytes(s));
+            Func<string, bool> test = s => Program.IsMessageIdLine(s.ToBytes());
 
             Assert.IsTrue(test("Message-ID: xxx"));
             Assert.IsTrue(test("Message-ID:xxx"));
@@ -109,7 +119,7 @@ Content-Transfer-Encoding: 7bit
 Content-Language: en-US
 
 test";
-            return Encoding.UTF8.GetBytes(text);
+            return text.ToBytes();
         }
 
         byte[] MakeFoldedEndDate() {
@@ -128,7 +138,7 @@ Date:
  Sun, 26 Jul 2020
  22:01:37 +0900
 ";
-            return Encoding.UTF8.GetBytes(text);
+            return text.ToBytes();
         }
 
         byte[] MakeFoldedEndMessageId() {
@@ -147,19 +157,19 @@ Date:
 Message-ID:
  <b0e564a5-4f70-761a-e103-70119d1bcb32@ah62.example.jp>
 ";
-            return Encoding.UTF8.GetBytes(text);
+            return text.ToBytes();
         }
 
         byte[] MakeSimpleMail() {
-            return Encoding.UTF8.GetBytes(MakeSimpleMailText());
+            return MakeSimpleMailText().ToBytes();
         }
 
         byte[] MakeInvalidMail() {
-            return Encoding.UTF8.GetBytes(MakeSimpleMailText().Replace("\r\n\r\n", ""));
+            return MakeSimpleMailText().Replace("\r\n\r\n", "").ToBytes();
         }
 
         string GetHeaderLine(byte[] header, string name) {
-            var headerStr = Encoding.UTF8.GetString(header);
+            var headerStr = header.ToUtf8String();
             return Regex.Match(headerStr, name + @":[\s\S]+?\r\n(?=([^ \t]|$))").Value;
         }
 
@@ -174,18 +184,18 @@ Message-ID:
         [TestMethod()]
         public void GetHeaderLineTest() {
             var mail = MakeSimpleMail();
-            Assert.AreEqual("Date: Sun, 26 Jul 2020 22:01:37 +0900\r\n", GetHeaderLine(mail, "Date"));
-            Assert.AreEqual("Message-ID: <b0e564a5-4f70-761a-e103-70119d1bcb32@ah62.example.jp>\r\n", GetHeaderLine(mail, "Message-ID"));
+            Assert.AreEqual("Date: Sun, 26 Jul 2020 22:01:37 +0900\r\n", GetDateLine(mail));
+            Assert.AreEqual("Message-ID: <b0e564a5-4f70-761a-e103-70119d1bcb32@ah62.example.jp>\r\n", GetMessageIdLine(mail));
 
-            var foldedMail = MakeFoldedMail();
-            Assert.AreEqual("Date:\r\n Sun, 26 Jul 2020\r\n 22:01:37 +0900\r\n", GetHeaderLine(foldedMail, "Date"));
-            Assert.AreEqual("Message-ID:\r\n <b0e564a5-4f70-761a-e103-70119d1bcb32@ah62.example.jp>\r\n", GetHeaderLine(foldedMail, "Message-ID"));
+            var fMail = MakeFoldedMail();
+            Assert.AreEqual("Date:\r\n Sun, 26 Jul 2020\r\n 22:01:37 +0900\r\n", GetDateLine(fMail));
+            Assert.AreEqual("Message-ID:\r\n <b0e564a5-4f70-761a-e103-70119d1bcb32@ah62.example.jp>\r\n", GetMessageIdLine(fMail));
 
-            var endDate = MakeFoldedEndDate();
-            Assert.AreEqual("Date:\r\n Sun, 26 Jul 2020\r\n 22:01:37 +0900\r\n", GetHeaderLine(endDate, "Date"));
+            var eDate = MakeFoldedEndDate();
+            Assert.AreEqual("Date:\r\n Sun, 26 Jul 2020\r\n 22:01:37 +0900\r\n", GetDateLine(eDate));
 
-            var endMessageId = MakeFoldedEndMessageId();
-            Assert.AreEqual("Message-ID:\r\n <b0e564a5-4f70-761a-e103-70119d1bcb32@ah62.example.jp>\r\n", GetHeaderLine(endMessageId, "Message-ID"));
+            var eMessageId = MakeFoldedEndMessageId();
+            Assert.AreEqual("Message-ID:\r\n <b0e564a5-4f70-761a-e103-70119d1bcb32@ah62.example.jp>\r\n", GetMessageIdLine(eMessageId));
         }
 
         [TestMethod()]
@@ -241,13 +251,13 @@ Message-ID:
             var lines = Program.GetRawLines(mail);
 
             Assert.AreEqual(13, lines.Count);
-            Assert.AreEqual("From: a001 <a001@ah62.example.jp>\r\n", Encoding.UTF8.GetString(lines[0]));
-            Assert.AreEqual("Subject: test\r\n", Encoding.UTF8.GetString(lines[1]));
-            Assert.AreEqual("To: a002@ah62.example.jp\r\n", Encoding.UTF8.GetString(lines[2]));
+            Assert.AreEqual("From: a001 <a001@ah62.example.jp>\r\n", lines[0].ToUtf8String());
+            Assert.AreEqual("Subject: test\r\n", lines[1].ToUtf8String());
+            Assert.AreEqual("To: a002@ah62.example.jp\r\n", lines[2].ToUtf8String());
 
-            Assert.AreEqual("Content-Language: en-US\r\n", Encoding.UTF8.GetString(lines[^3]));
-            Assert.AreEqual("\r\n", Encoding.UTF8.GetString(lines[^2]));
-            Assert.AreEqual("test", Encoding.UTF8.GetString(lines[^1]));
+            Assert.AreEqual("Content-Language: en-US\r\n", lines[^3].ToUtf8String());
+            Assert.AreEqual("\r\n", lines[^2].ToUtf8String());
+            Assert.AreEqual("test", lines[^1].ToUtf8String());
         }
 
         [TestMethod()]
@@ -442,7 +452,7 @@ Message-ID:
         [TestMethod()]
         public void RecvLineTest() {
             var recvLine = GetStdout(() => {
-                var streamReader = new StreamReader(new MemoryStream(Encoding.UTF8.GetBytes("250 OK\r\n")));
+                var streamReader = new StreamReader(new MemoryStream("250 OK\r\n".ToBytes()));
                 Assert.AreEqual("250 OK", Program.RecvLine(streamReader));
             });
             Assert.AreEqual("recv: 250 OK\r\n", recvLine);
@@ -450,7 +460,7 @@ Message-ID:
             var streamReader2 = new StreamReader(new MemoryStream());
             Assert.ThrowsException<IOException>(() => Program.RecvLine(streamReader2));
 
-            var streamReader3 = new StreamReader(new MemoryStream(Encoding.UTF8.GetBytes("554 Transaction failed\r\n")));
+            var streamReader3 = new StreamReader(new MemoryStream("554 Transaction failed\r\n".ToBytes()));
             Assert.ThrowsException<IOException>(() => Program.RecvLine(streamReader3));
         }
 
@@ -470,7 +480,7 @@ Message-ID:
                 Program.SendLine(memStream, "EHLO localhost");
             });
             Assert.AreEqual("send: EHLO localhost\r\n", sendLine);
-            Assert.AreEqual("EHLO localhost\r\n", Encoding.UTF8.GetString(memStream.ToArray()));
+            Assert.AreEqual("EHLO localhost\r\n", memStream.ToArray().ToUtf8String());
         }
 
         SendCmd MakeTestSendCmd(string expected) {

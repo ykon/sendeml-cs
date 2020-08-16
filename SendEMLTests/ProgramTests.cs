@@ -363,26 +363,26 @@ Message-ID:
         }
 
         [TestMethod()]
-        public void ReplaceRawBytesTest() {
+        public void ReplaceMailTest() {
             var mail = MakeSimpleMail();
-            var replMailNoupdate = Program.ReplaceRawBytes(mail, false, false);
+            var replMailNoupdate = Program.ReplaceMail(mail, false, false);
             Assert.AreEqual(mail, replMailNoupdate);
 
-            var replMail = Program.ReplaceRawBytes(mail, true, true);
+            var replMail = Program.ReplaceMail(mail, true, true);
             Assert.AreNotEqual(mail, replMail);
             CollectionAssert.AreNotEqual(mail, replMail);
             CollectionAssert.AreEqual(mail[^100..^0], replMail[^100..^0]);
 
             var invalidMail = MakeInvalidMail();
-            Assert.ThrowsException<IOException>(() => Program.ReplaceRawBytes(invalidMail, true, true));
+            Assert.ThrowsException<Exception>(() => Program.ReplaceMail(invalidMail, true, true));
         }
 
         [TestMethod()]
-        public void GetSettingsTest() {
+        public void GetAndMapSettingsTest() {
             var path = Path.GetTempFileName();
             File.WriteAllText(path, Program.MakeJsonSample());
 
-            var settings = Program.GetSettings(path);
+            var settings = Program.MapSettings(Program.GetSettings(path));
             Assert.AreEqual("172.16.3.151", settings.SmtpHost);
             Assert.AreEqual(25, settings.SmtpPort);
             Assert.AreEqual("a001@ah62.example.jp", settings.FromAddress);
@@ -432,20 +432,20 @@ Message-ID:
         }
 
         [TestMethod()]
-        public void SendRawBytesTest() {
+        public void SendMailTest() {
             var path = Path.GetTempFileName();
             var mail = MakeSimpleMail();
             File.WriteAllBytes(path, mail);
 
             var memStream = new MemoryStream();
             var sendLine = GetStdout(() => {
-                Program.SendRawBytes(memStream, path, false, false);
+                Program.SendMail(memStream, path, false, false);
             });
             Assert.AreEqual($"send: {path}\r\n", sendLine);
             CollectionAssert.AreEqual(mail, memStream.ToArray());
 
             var memStream2 = new MemoryStream();
-            Program.SendRawBytes(memStream2, path, true, true);
+            Program.SendMail(memStream2, path, true, true);
             CollectionAssert.AreNotEqual(mail, memStream2.ToArray());
         }
 
@@ -458,10 +458,10 @@ Message-ID:
             Assert.AreEqual("recv: 250 OK\r\n", recvLine);
 
             var streamReader2 = new StreamReader(new MemoryStream());
-            Assert.ThrowsException<IOException>(() => Program.RecvLine(streamReader2));
+            Assert.ThrowsException<Exception>(() => Program.RecvLine(streamReader2));
 
             var streamReader3 = new StreamReader(new MemoryStream("554 Transaction failed\r\n".ToBytes()));
-            Assert.ThrowsException<IOException>(() => Program.RecvLine(streamReader3));
+            Assert.ThrowsException<Exception>(() => Program.RecvLine(streamReader3));
         }
 
         [TestMethod()]
@@ -553,18 +553,20 @@ Message-ID:
         public void CheckSettingsTest() {
             static void checkNoKey(string key) {
                 var json = Program.MakeJsonSample();
-                var noKey = new Regex(key).Replace(json, $"X-{key}", 1);
+                var noKey = json.Replace(key, $"X-{key}");
                 Program.CheckSettings(Program.GetSettingsFromText(noKey));
             }
 
-            Assert.ThrowsException<IOException>(() => checkNoKey("smtpHost"));
-            Assert.ThrowsException<IOException>(() => checkNoKey("smtpPort"));
-            Assert.ThrowsException<IOException>(() => checkNoKey("fromAddress"));
-            Assert.ThrowsException<IOException>(() => checkNoKey("toAddress"));
-            Assert.ThrowsException<IOException>(() => checkNoKey("emlFile"));
+            Assert.ThrowsException<Exception>(() => checkNoKey("smtpHost"));
+            Assert.ThrowsException<Exception>(() => checkNoKey("smtpPort"));
+            Assert.ThrowsException<Exception>(() => checkNoKey("fromAddress"));
+            Assert.ThrowsException<Exception>(() => checkNoKey("toAddress"));
+            Assert.ThrowsException<Exception>(() => checkNoKey("emlFile"));
 
             try {
-                checkNoKey("testKey");
+                checkNoKey("updateDate");
+                checkNoKey("updateMessageId");
+                checkNoKey("useParallel");
             } catch(Exception e) {
                 Assert.Fail("Expected no exception: " + e.Message);
             }
@@ -572,7 +574,7 @@ Message-ID:
 
         [TestMethod()]
         public void ProcJsonFileTest() {
-            Assert.ThrowsException<IOException>(() => Program.ProcJsonFile("__test__"));
+            Assert.ThrowsException<Exception>(() => Program.ProcJsonFile("__test__"));
         }
     }
 }

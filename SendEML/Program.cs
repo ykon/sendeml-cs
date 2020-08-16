@@ -182,59 +182,125 @@ namespace SendEML {
             return (header, body);
         }
 
-        public static byte[] ReplaceRawBytes(byte[] fileBuf, bool updateDate, bool updateMessageId) {
+        public static byte[] ReplaceMail(byte[] fileBuf, bool updateDate, bool updateMessageId) {
             if (IsNotUpdate(updateDate, updateMessageId))
                 return fileBuf;
 
             var mail = SplitMail(fileBuf);
             if (!mail.HasValue)
-                throw new IOException("Invalid mail");
+                throw new Exception("Invalid mail");
 
             var (header, body) = mail.Value;
             var replHeader = ReplaceHeader(header, updateDate, updateMessageId);
             return CombineMail(replHeader, body);
         }
 
-        static volatile bool USE_PARALLEL = false;
-
-        public static string GetCurrentIdPrefix() {
-            return USE_PARALLEL ? $"id: {Task.CurrentId}, " : "";
+        public static string MakeIdPrefix(bool use_parallel) {
+            return use_parallel ? $"id: {Task.CurrentId}, " : "";
         }
 
-        public static void SendRawBytes(Stream stream, string file, bool updateDate, bool updateMessageId) {
-            Console.WriteLine(GetCurrentIdPrefix() + $"send: {file}");
+        public static void SendMail(Stream stream, string file, bool updateDate, bool updateMessageId, bool use_parallel = false) {
+            Console.WriteLine(MakeIdPrefix(use_parallel) + $"send: {file}");
 
             var path = Path.GetFullPath(file);
-            var buf = ReplaceRawBytes(File.ReadAllBytes(path), updateDate, updateMessageId);
+            var buf = ReplaceMail(File.ReadAllBytes(path), updateDate, updateMessageId);
             stream.Write(buf, 0, buf.Length);
             stream.Flush();
         }
 
-#nullable enable
-        public class Settings {
-            public string? SmtpHost { get; set; }
-            public int? SmtpPort { get; set; }
-            public string? FromAddress { get; set; }
-            public ImmutableList<string>? ToAddress { get; set; }
-            public ImmutableList<string>? EmlFile { get; set; }
-            public bool UpdateDate { get; set; } = true;
-            public bool UpdateMessageId { get; set; } = true;
-            public bool UseParallel { get; set; } = false;
-        }
-#nullable disable
+        public readonly struct Settings {
+            public string SmtpHost { get; }
+            public int SmtpPort { get; }
+            public string FromAddress { get; }
+            public ImmutableList<string> ToAddress { get; }
+            public ImmutableList<string> EmlFile { get; }
+            public bool UpdateDate { get; }
+            public bool UpdateMessageId { get; }
+            public bool UseParallel { get; }
 
-        public static Settings GetSettingsFromText(string text) {
-            var options = new JsonSerializerOptions {
-                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-                ReadCommentHandling = JsonCommentHandling.Skip
+            public Settings(string smtpHost, int smtpPort, string fromAddress,
+                ImmutableList<string> toAddress, ImmutableList<string> emlFile,
+                bool updateDate, bool updateMessageId, bool useParallel) {
+                SmtpHost = smtpHost;
+                SmtpPort = smtpPort;
+                FromAddress = fromAddress;
+                ToAddress = toAddress;
+                EmlFile = emlFile;
+                UpdateDate = updateDate;
+                UpdateMessageId = updateMessageId;
+                UseParallel = useParallel;
+            }
+        }
+
+        public static JsonDocument GetSettingsFromText(string text) {
+            var options = new JsonDocumentOptions {
+                CommentHandling = JsonCommentHandling.Skip
             };
 
-            return JsonSerializer.Deserialize<Settings>(text, options);
+            return JsonDocument.Parse(text, options);
         }
 
-        public static Settings GetSettings(string file) {
+        public static JsonDocument GetSettings(string file) {
             var path = Path.GetFullPath(file);
             return GetSettingsFromText(File.ReadAllText(path));
+        }
+
+        public static Settings MapSettings(JsonDocument json) {
+            var root = json.RootElement;
+
+            var updateDate = root.TryGetProperty("updateDate", out var p1) ? p1.GetBoolean() : true;
+            var updateMessageId = root.TryGetProperty("updateMessageId", out var p2) ? p2.GetBoolean() : true;
+            var useParallel = root.TryGetProperty("useParallel", out var p3) ? p3.GetBoolean() : false;
+
+            return new Settings(
+                root.GetProperty("smtpHost").GetString(),
+                root.GetProperty("smtpPort").GetInt32(),
+                root.GetProperty("fromAddress").GetString(),
+                root.GetProperty("toAddress").EnumerateArray().Select(e => e.GetString()).ToImmutableList(),
+                root.GetProperty("emlFile").EnumerateArray().Select(e => e.GetString()).ToImmutableList(),
+                updateDate, updateMessageId, useParallel);
+        }
+
+        public static void CheckJsonValue(JsonElement root, string name, JsonValueKind kind) {
+            if (root.TryGetProperty(name, out var prop)) {
+                if (prop.ValueKind != kind)
+                    throw new Exception($"{name}: Invalid type");
+            }
+        }
+
+        public static void CheckJsonArrayValue(JsonElement root, string name, JsonValueKind kind) {
+            if (root.TryGetProperty(name, out var prop)) {
+                if (prop.ValueKind != JsonValueKind.Array)
+                    throw new Exception($"{name}: Invalid type (array)");
+
+                var elm = prop.EnumerateArray().Where(e => e.ValueKind != kind).Take(1);
+                if (elm.Any())
+                    throw new Exception($"{name}: Invalid type (element): {elm.First()}");
+            }
+        }
+
+        public static void CheckJsonBoolValue(JsonElement root, string name) {
+            if (root.TryGetProperty(name, out var prop)) {
+                if (prop.ValueKind != JsonValueKind.False && prop.ValueKind != JsonValueKind.True)
+                    throw new Exception($"{name}: Invalid type");
+            }
+        }
+
+        public static void CheckSettings(JsonDocument json) {
+            var root = json.RootElement;
+            var names = new[] { "smtpHost", "smtpPort", "fromAddress", "toAddress", "emlFile" };
+            var key = names.FirstOrDefault(n => !root.TryGetProperty(n, out var _));
+            if (key != null)
+                throw new Exception($"{key} key does not exist");
+
+            CheckJsonValue(root, "smtpHost", JsonValueKind.String);
+            CheckJsonValue(root, "smtpPort", JsonValueKind.Number);
+            CheckJsonValue(root, "fromAddress", JsonValueKind.String);
+            CheckJsonArrayValue(root, "toAddress", JsonValueKind.String);
+            CheckJsonArrayValue(root, "emlFile", JsonValueKind.String);
+            CheckJsonBoolValue(root, "updateDate");
+            CheckJsonBoolValue(root, "updateMessage-Id");
+            CheckJsonBoolValue(root, "useParallel");
         }
 
         static readonly Regex LAST_REPLY_REGEX = new Regex(@"^\d{3} .+", RegexOptions.Compiled);
@@ -251,16 +317,16 @@ namespace SendEML {
             };
         }
 
-        public static string RecvLine(StreamReader reader) {
+        public static string RecvLine(StreamReader reader, bool use_parallel = false) {
             while (true) {
-                var line = reader.ReadLine()?.Trim() ?? throw new IOException("Connection closed by foreign host");
-                Console.WriteLine(GetCurrentIdPrefix() + $"recv: {line}");
+                var line = reader.ReadLine()?.Trim() ?? throw new Exception("Connection closed by foreign host");
+                Console.WriteLine(MakeIdPrefix(use_parallel) + $"recv: {line}");
 
                 if (IsLastReply(line)) {
                     if (IsPositiveReply(line))
                         return line;
 
-                    throw new IOException(line);
+                    throw new Exception(line);
                 }
             }
         }
@@ -269,18 +335,18 @@ namespace SendEML {
             return cmd == $"{CRLF}." ? "<CRLF>." : cmd;
         }
 
-        public static void SendLine(Stream output, string cmd) {
-            Console.WriteLine(GetCurrentIdPrefix() + "send: " + ReplaceCrlfDot(cmd));
+        public static void SendLine(Stream output, string cmd, bool use_parallel = false) {
+            Console.WriteLine(MakeIdPrefix(use_parallel) + "send: " + ReplaceCrlfDot(cmd));
 
             var buf = Encoding.UTF8.GetBytes(cmd + CRLF);
             output.Write(buf, 0, buf.Length);
             output.Flush();
         }
 
-        public static SendCmd MakeSendCmd(StreamReader reader) {
+        public static SendCmd MakeSendCmd(StreamReader reader, bool use_parallel) {
             return cmd => {
-                SendLine(reader.BaseStream, cmd);
-                return RecvLine(reader);
+                SendLine(reader.BaseStream, cmd, use_parallel);
+                return RecvLine(reader, use_parallel);
             };
         }
 
@@ -314,24 +380,22 @@ namespace SendEML {
         }
 
         public static void SendMessages(Settings settings, ImmutableList<string> emlFiles) {
-            using var socket = new TcpClient(settings.SmtpHost, (int)settings.SmtpPort!);
+            using var socket = new TcpClient(settings.SmtpHost, settings.SmtpPort);
             var stream = socket.GetStream();
-            stream.ReadTimeout = 1000;
-
             var reader = new StreamReader(stream);
-            var send = MakeSendCmd(reader);
+            var send = MakeSendCmd(reader, settings.UseParallel);
 
-            RecvLine(reader);
+            RecvLine(reader, settings.UseParallel);
             SendHello(send);
 
-            var mailSent = false;
+            var reset = false;
             foreach (var file in emlFiles) {
                 if (!File.Exists(file)) {
                     Console.WriteLine($"{file}: EML file does not exist");
                     continue;
                 }
 
-                if (mailSent) {
+                if (reset) {
                     Console.WriteLine("---");
                     SendRset(send);
                 }
@@ -339,16 +403,18 @@ namespace SendEML {
                 SendFrom(send, settings.FromAddress);
                 SendRcptTo(send, settings.ToAddress);
                 SendData(send);
-                SendRawBytes(stream, file, settings.UpdateDate, settings.UpdateMessageId);
+
+                try {
+                    SendMail(stream, file, settings.UpdateDate, settings.UpdateMessageId, settings.UseParallel);
+                } catch (Exception e) {
+                    throw new Exception($"{file}: {e.Message}");
+                }
+
                 SendCrlfDot(send);
-                mailSent = true;
+                reset = true;
             }
 
             SendQuit(send);
-        }
-
-        public static void SendOneMessage(Settings settings, string file) {
-            SendMessages(settings, ImmutableList.Create(file));
         }
 
         public static string MakeJsonSample() {
@@ -384,31 +450,17 @@ namespace SendEML {
             Console.WriteLine($"SendEML / Version: {VERSION}");
         }
 
-        public static void CheckSettings(Settings settings) {
-            static string GetNullKey(Settings s) {
-                return s.SmtpHost == null ? "smtpHost"
-                    : s.SmtpPort == null ? "smtpPort"
-                    : s.FromAddress == null ? "fromAddress"
-                    : s.ToAddress == null ? "toAddress"
-                    : s.EmlFile == null ? "emlFile"
-                    : "";
-            }
-
-            var key = GetNullKey(settings);
-            if (key != "")
-                throw new IOException($"{key} key does not exist");
-        }
-
         public static void ProcJsonFile(string jsonFile) {
             if (!File.Exists(jsonFile))
-                throw new IOException("Json file does not exist");
+                throw new Exception("Json file does not exist");
 
-            var settings = GetSettings(jsonFile);
-            CheckSettings(settings);
+            var json = GetSettings(jsonFile);
+            CheckSettings(json);
+            var settings = MapSettings(json);
 
             if (settings.UseParallel) {
-                USE_PARALLEL = true;
-                settings.EmlFile.AsParallel().ForAll(f => SendOneMessage(settings, f));
+                settings.EmlFile.AsParallel().ForAll(f =>
+                    SendMessages(settings, ImmutableList.Create(f)));
             } else {
                 SendMessages(settings, settings.EmlFile);
             }
@@ -429,7 +481,7 @@ namespace SendEML {
                 try {
                     ProcJsonFile(jsonFile);
                 } catch (Exception e) {
-                    Console.WriteLine($"{jsonFile}: {e.Message}");
+                    Console.WriteLine($"error: {jsonFile}: {e.Message}");
                 }
             }
         }

@@ -379,13 +379,13 @@ namespace SendEML {
             send("RSET");
         }
 
-        public static void SendMessages(Settings settings, ImmutableList<string> emlFiles) {
+        public static void SendMessages(Settings settings, ImmutableList<string> emlFiles, bool useParallel) {
             using var socket = new TcpClient(settings.SmtpHost, settings.SmtpPort);
             var stream = socket.GetStream();
             var reader = new StreamReader(stream);
-            var send = MakeSendCmd(reader, settings.UseParallel);
+            var send = MakeSendCmd(reader, useParallel);
 
-            RecvLine(reader, settings.UseParallel);
+            RecvLine(reader, useParallel);
             SendHello(send);
 
             var reset = false;
@@ -405,7 +405,7 @@ namespace SendEML {
                 SendData(send);
 
                 try {
-                    SendMail(stream, file, settings.UpdateDate, settings.UpdateMessageId, settings.UseParallel);
+                    SendMail(stream, file, settings.UpdateDate, settings.UpdateMessageId, useParallel);
                 } catch (Exception e) {
                     throw new Exception($"{file}: {e.Message}");
                 }
@@ -458,11 +458,12 @@ namespace SendEML {
             CheckSettings(json);
             var settings = MapSettings(json);
 
-            if (settings.UseParallel) {
+            if (settings.UseParallel && settings.EmlFile.Count > 1) {
                 settings.EmlFile.AsParallel().ForAll(f =>
-                    SendMessages(settings, ImmutableList.Create(f)));
+                    SendMessages(settings, ImmutableList.Create(f), true)
+                );
             } else {
-                SendMessages(settings, settings.EmlFile);
+                SendMessages(settings, settings.EmlFile, false);
             }
         }
 

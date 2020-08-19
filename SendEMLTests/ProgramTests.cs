@@ -23,6 +23,10 @@ namespace SendEML.Tests {
         public static string ToUtf8String(this byte[] bytes) {
             return Encoding.UTF8.GetString(bytes);
         }
+
+        public static JsonDocument ToJson(this string str) {
+            return JsonDocument.Parse(str);
+        }
     }
 
     [TestClass()]
@@ -581,7 +585,7 @@ Message-ID:
         [TestMethod()]
         public void CheckJsonValueTest() {
             void Check(string jsonStr, JsonValueKind kind) {
-                Program.CheckJsonValue(JsonDocument.Parse(jsonStr).RootElement, "test", kind);
+                Program.CheckJsonValue(jsonStr.ToJson().RootElement, "test", kind);
             }
 
             void CheckError(string jsonStr, JsonValueKind kind, string expected) {
@@ -596,6 +600,7 @@ Message-ID:
             var jsonNumber = @"{""test"": 172}";
             var jsonTrue = @"{""test"": true}";
             var jsonFalse = @"{""test"": false}";
+
             try {
                 Check(jsonStr, JsonValueKind.String);
                 Check(jsonNumber, JsonValueKind.Number);
@@ -610,12 +615,18 @@ Message-ID:
 
             Assert.ThrowsException<Exception>(() => Check(jsonNumber, JsonValueKind.String));
             CheckError(jsonNumber, JsonValueKind.False, "test: Invalid type: 172");
+
+            Assert.ThrowsException<Exception>(() => Check(jsonTrue, JsonValueKind.String));
+            CheckError(jsonTrue, JsonValueKind.Number, "test: Invalid type: True");
+
+            Assert.ThrowsException<Exception>(() => Check(jsonFalse, JsonValueKind.String));
+            CheckError(jsonFalse, JsonValueKind.Number, "test: Invalid type: False");
         }
 
         [TestMethod()]
         public void CheckJsonBoolValueTest() {
             void Check(string jsonStr) {
-                Program.CheckJsonBoolValue(JsonDocument.Parse(jsonStr).RootElement, "test");
+                Program.CheckJsonBoolValue(jsonStr.ToJson().RootElement, "test");
             }
 
             void CheckError(string jsonStr, string expected) {
@@ -626,10 +637,11 @@ Message-ID:
                 }
             }
 
-            var jsonTrue = @"{""test"": true}";
-            var jsonFalse = @"{""test"": false}";
             try {
+                var jsonTrue = @"{""test"": true}";
                 Check(jsonTrue);
+
+                var jsonFalse = @"{""test"": false}";
                 Check(jsonFalse);
             } catch (Exception e) {
                 Assert.Fail(e.Message);
@@ -645,7 +657,7 @@ Message-ID:
         [TestMethod()]
         public void CheckJsonArrayValueTest() {
             void Check(string jsonStr, JsonValueKind kind) {
-                Program.CheckJsonArrayValue(JsonDocument.Parse(jsonStr).RootElement, "test", kind);
+                Program.CheckJsonArrayValue(jsonStr.ToJson().RootElement, "test", kind);
             }
 
             void CheckError(string jsonStr, JsonValueKind kind, string expected) {
@@ -656,8 +668,8 @@ Message-ID:
                 }
             }
 
-            var jsonArray = @"{""test"": [""172.16.3.151"", ""172.16.3.152"", ""172.16.3.153""]}";
             try {
+                var jsonArray = @"{""test"": [""172.16.3.151"", ""172.16.3.152"", ""172.16.3.153""]}";
                 Check(jsonArray, JsonValueKind.String);
             } catch (Exception e) {
                 Assert.Fail(e.Message);

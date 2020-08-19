@@ -264,14 +264,14 @@ namespace SendEML {
         public static void CheckJsonValue(JsonElement root, string name, JsonValueKind kind) {
             if (root.TryGetProperty(name, out var prop)) {
                 if (prop.ValueKind != kind)
-                    throw new Exception($"{name}: Invalid type");
+                    throw new Exception($"{name}: Invalid type: {prop}");
             }
         }
 
         public static void CheckJsonArrayValue(JsonElement root, string name, JsonValueKind kind) {
             if (root.TryGetProperty(name, out var prop)) {
                 if (prop.ValueKind != JsonValueKind.Array)
-                    throw new Exception($"{name}: Invalid type (array)");
+                    throw new Exception($"{name}: Invalid type (array): {prop}");
 
                 var elm = prop.EnumerateArray().Where(e => e.ValueKind != kind).Take(1);
                 if (elm.Any())
@@ -282,7 +282,7 @@ namespace SendEML {
         public static void CheckJsonBoolValue(JsonElement root, string name) {
             if (root.TryGetProperty(name, out var prop)) {
                 if (prop.ValueKind != JsonValueKind.False && prop.ValueKind != JsonValueKind.True)
-                    throw new Exception($"{name}: Invalid type");
+                    throw new Exception($"{name}: Invalid type: {prop}");
             }
         }
 

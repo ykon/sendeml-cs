@@ -9,6 +9,7 @@ using System.Collections.Immutable;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 
 namespace SendEML.Tests {
@@ -567,14 +568,106 @@ Message-ID:
                 checkNoKey("updateDate");
                 checkNoKey("updateMessageId");
                 checkNoKey("useParallel");
-            } catch(Exception e) {
-                Assert.Fail("Expected no exception: " + e.Message);
+            } catch (Exception e) {
+                Assert.Fail(e.Message);
             }
         }
 
         [TestMethod()]
         public void ProcJsonFileTest() {
             Assert.ThrowsException<Exception>(() => Program.ProcJsonFile("__test__"));
+        }
+
+        [TestMethod()]
+        public void CheckJsonValueTest() {
+            void Check(string jsonStr, JsonValueKind kind) {
+                Program.CheckJsonValue(JsonDocument.Parse(jsonStr).RootElement, "test", kind);
+            }
+
+            void CheckError(string jsonStr, JsonValueKind kind, string expected) {
+                try {
+                    Check(jsonStr, kind);
+                } catch (Exception e) {
+                    Assert.AreEqual(expected, e.Message);
+                }
+            }
+
+            var jsonStr = @"{""test"": ""172.16.3.151""}";
+            var jsonNumber = @"{""test"": 172}";
+            var jsonTrue = @"{""test"": true}";
+            var jsonFalse = @"{""test"": false}";
+            try {
+                Check(jsonStr, JsonValueKind.String);
+                Check(jsonNumber, JsonValueKind.Number);
+                Check(jsonTrue, JsonValueKind.True);
+                Check(jsonFalse, JsonValueKind.False);
+            } catch (Exception e) {
+                Assert.Fail(e.Message);
+            }
+
+            Assert.ThrowsException<Exception>(() => Check(jsonStr, JsonValueKind.Number));
+            CheckError(jsonStr, JsonValueKind.True, "test: Invalid type: 172.16.3.151");
+
+            Assert.ThrowsException<Exception>(() => Check(jsonNumber, JsonValueKind.String));
+            CheckError(jsonNumber, JsonValueKind.False, "test: Invalid type: 172");
+        }
+
+        [TestMethod()]
+        public void CheckJsonBoolValueTest() {
+            void Check(string jsonStr) {
+                Program.CheckJsonBoolValue(JsonDocument.Parse(jsonStr).RootElement, "test");
+            }
+
+            void CheckError(string jsonStr, string expected) {
+                try {
+                    Check(jsonStr);
+                } catch (Exception e) {
+                    Assert.AreEqual(expected, e.Message);
+                }
+            }
+
+            var jsonTrue = @"{""test"": true}";
+            var jsonFalse = @"{""test"": false}";
+            try {
+                Check(jsonTrue);
+                Check(jsonFalse);
+            } catch (Exception e) {
+                Assert.Fail(e.Message);
+            }
+
+            var jsonStr = @"{""test"": ""172.16.3.151""}";
+            CheckError(jsonStr, "test: Invalid type: 172.16.3.151");
+
+            var jsonNumber = @"{""test"": 172}";
+            CheckError(jsonNumber, "test: Invalid type: 172");
+        }
+
+        [TestMethod()]
+        public void CheckJsonArrayValueTest() {
+            void Check(string jsonStr, JsonValueKind kind) {
+                Program.CheckJsonArrayValue(JsonDocument.Parse(jsonStr).RootElement, "test", kind);
+            }
+
+            void CheckError(string jsonStr, JsonValueKind kind, string expected) {
+                try {
+                    Check(jsonStr, kind);
+                } catch (Exception e) {
+                    Assert.AreEqual(expected, e.Message);
+                }
+            }
+
+            var jsonArray = @"{""test"": [""172.16.3.151"", ""172.16.3.152"", ""172.16.3.153""]}";
+            try {
+                Check(jsonArray, JsonValueKind.String);
+            } catch (Exception e) {
+                Assert.Fail(e.Message);
+            }
+
+            var jsonStr = @"{""test"": ""172.16.3.151""}";
+            CheckError(jsonStr, JsonValueKind.String, "test: Invalid type (array): 172.16.3.151");
+
+            var jsonInvalidArray = @"{""test"": [""172.16.3.151"", ""172.16.3.152"", 172]}";
+            CheckError(jsonInvalidArray, JsonValueKind.String, "test: Invalid type (element): 172");
         }
     }
 }

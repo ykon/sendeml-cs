@@ -392,9 +392,9 @@ Message-ID:
             Assert.AreEqual(25, settings.SmtpPort);
             Assert.AreEqual("a001@ah62.example.jp", settings.FromAddress);
             CollectionAssert.AreEqual(new[] { "a001@ah62.example.jp", "a002@ah62.example.jp", "a003@ah62.example.jp" },
-                settings.ToAddress);
+                settings.ToAddresses);
             CollectionAssert.AreEqual(new[] { "test1.eml", "test2.eml", "test3.eml" },
-                settings.EmlFile);
+                settings.EmlFiles);
             Assert.AreEqual(true, settings.UpdateDate);
             Assert.AreEqual(true, settings.UpdateMessageId);
             Assert.AreEqual(false, settings.UseParallel);
@@ -565,8 +565,8 @@ Message-ID:
             Assert.ThrowsException<Exception>(() => checkNoKey("smtpHost"));
             Assert.ThrowsException<Exception>(() => checkNoKey("smtpPort"));
             Assert.ThrowsException<Exception>(() => checkNoKey("fromAddress"));
-            Assert.ThrowsException<Exception>(() => checkNoKey("toAddress"));
-            Assert.ThrowsException<Exception>(() => checkNoKey("emlFile"));
+            Assert.ThrowsException<Exception>(() => checkNoKey("toAddresses"));
+            Assert.ThrowsException<Exception>(() => checkNoKey("emlFiles"));
 
             try {
                 checkNoKey("updateDate");

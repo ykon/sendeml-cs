@@ -212,20 +212,20 @@ namespace SendEML {
             public string SmtpHost { get; }
             public int SmtpPort { get; }
             public string FromAddress { get; }
-            public ImmutableList<string> ToAddress { get; }
-            public ImmutableList<string> EmlFile { get; }
+            public ImmutableList<string> ToAddresses { get; }
+            public ImmutableList<string> EmlFiles { get; }
             public bool UpdateDate { get; }
             public bool UpdateMessageId { get; }
             public bool UseParallel { get; }
 
             public Settings(string smtpHost, int smtpPort, string fromAddress,
-                ImmutableList<string> toAddress, ImmutableList<string> emlFile,
+                ImmutableList<string> toAddresses, ImmutableList<string> emlFiles,
                 bool updateDate, bool updateMessageId, bool useParallel) {
                 SmtpHost = smtpHost;
                 SmtpPort = smtpPort;
                 FromAddress = fromAddress;
-                ToAddress = toAddress;
-                EmlFile = emlFile;
+                ToAddresses = toAddresses;
+                EmlFiles = emlFiles;
                 UpdateDate = updateDate;
                 UpdateMessageId = updateMessageId;
                 UseParallel = useParallel;
@@ -256,8 +256,8 @@ namespace SendEML {
                 root.GetProperty("smtpHost").GetString(),
                 root.GetProperty("smtpPort").GetInt32(),
                 root.GetProperty("fromAddress").GetString(),
-                root.GetProperty("toAddress").EnumerateArray().Select(e => e.GetString()).ToImmutableList(),
-                root.GetProperty("emlFile").EnumerateArray().Select(e => e.GetString()).ToImmutableList(),
+                root.GetProperty("toAddresses").EnumerateArray().Select(e => e.GetString()).ToImmutableList(),
+                root.GetProperty("emlFiles").EnumerateArray().Select(e => e.GetString()).ToImmutableList(),
                 updateDate, updateMessageId, useParallel);
         }
 
@@ -288,7 +288,7 @@ namespace SendEML {
 
         public static void CheckSettings(JsonDocument json) {
             var root = json.RootElement;
-            var names = new[] { "smtpHost", "smtpPort", "fromAddress", "toAddress", "emlFile" };
+            var names = new[] { "smtpHost", "smtpPort", "fromAddress", "toAddresses", "emlFiles" };
             var key = names.FirstOrDefault(n => !root.TryGetProperty(n, out var _));
             if (key != null)
                 throw new Exception($"{key} key does not exist");
@@ -296,8 +296,8 @@ namespace SendEML {
             CheckJsonValue(root, "smtpHost", JsonValueKind.String);
             CheckJsonValue(root, "smtpPort", JsonValueKind.Number);
             CheckJsonValue(root, "fromAddress", JsonValueKind.String);
-            CheckJsonArrayValue(root, "toAddress", JsonValueKind.String);
-            CheckJsonArrayValue(root, "emlFile", JsonValueKind.String);
+            CheckJsonArrayValue(root, "toAddresses", JsonValueKind.String);
+            CheckJsonArrayValue(root, "emlFiles", JsonValueKind.String);
             CheckJsonBoolValue(root, "updateDate");
             CheckJsonBoolValue(root, "updateMessage-Id");
             CheckJsonBoolValue(root, "useParallel");
@@ -401,7 +401,7 @@ namespace SendEML {
                 }
 
                 SendFrom(send, settings.FromAddress);
-                SendRcptTo(send, settings.ToAddress);
+                SendRcptTo(send, settings.ToAddresses);
                 SendData(send);
 
                 try {
@@ -422,12 +422,12 @@ namespace SendEML {
     ""smtpHost"": ""172.16.3.151"",
     ""smtpPort"": 25,
     ""fromAddress"": ""a001@ah62.example.jp"",
-    ""toAddress"": [
+    ""toAddresses"": [
         ""a001@ah62.example.jp"",
         ""a002@ah62.example.jp"",
         ""a003@ah62.example.jp""
     ],
-    ""emlFile"": [
+    ""emlFiles"": [
         ""test1.eml"",
         ""test2.eml"",
         ""test3.eml""
@@ -458,12 +458,12 @@ namespace SendEML {
             CheckSettings(json);
             var settings = MapSettings(json);
 
-            if (settings.UseParallel && settings.EmlFile.Count > 1) {
-                settings.EmlFile.AsParallel().ForAll(f =>
+            if (settings.UseParallel && settings.EmlFiles.Count > 1) {
+                settings.EmlFiles.AsParallel().ForAll(f =>
                     SendMessages(settings, ImmutableList.Create(f), true)
                 );
             } else {
-                SendMessages(settings, settings.EmlFile, false);
+                SendMessages(settings, settings.EmlFiles, false);
             }
         }
 

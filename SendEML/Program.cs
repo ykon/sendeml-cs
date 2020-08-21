@@ -187,8 +187,10 @@ namespace SendEML {
                 return fileBuf;
 
             var mail = SplitMail(fileBuf);
-            if (!mail.HasValue)
-                throw new Exception("Invalid mail");
+            if (!mail.HasValue) {
+                Console.WriteLine("error: Invalid mail: Disable updateDate, updateMessageId");
+                return fileBuf;
+            }
 
             var (header, body) = mail.Value;
             var replHeader = ReplaceHeader(header, updateDate, updateMessageId);

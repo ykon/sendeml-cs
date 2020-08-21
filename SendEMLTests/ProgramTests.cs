@@ -379,7 +379,7 @@ Message-ID:
             CollectionAssert.AreEqual(mail[^100..^0], replMail[^100..^0]);
 
             var invalidMail = MakeInvalidMail();
-            Assert.ThrowsException<Exception>(() => Program.ReplaceMail(invalidMail, true, true));
+            CollectionAssert.AreEqual(invalidMail, Program.ReplaceMail(invalidMail, true, true));
         }
 
         [TestMethod()]

@@ -1,5 +1,6 @@
-## About
-### SendEML is a testing tool for sending raw eml files.
+## SendEML
+
+A testing tool for sending raw eml files.
 * SendEML-cs runs on .NET Core 3.1 or newer.
   > [Download .NET Core](https://dotnet.microsoft.com/download/dotnet-core)
 
@@ -14,7 +15,7 @@ SendEML <setting_file> ...
 dotnet SendEML.dll <setting_file> ...
 ```
 
-## Setting File (sample)
+## Setting File (JSON format)
 ```
 {
     "smtpHost": "172.16.3.151",

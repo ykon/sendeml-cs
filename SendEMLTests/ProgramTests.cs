@@ -41,11 +41,13 @@ namespace SendEML.Tests {
 
             Assert.IsTrue(test("Test:", "Test:"));
             Assert.IsTrue(test("Test: ", "Test:"));
-            Assert.IsTrue(test("Test:x", "Test:"));
+            Assert.IsTrue(test("Test: xxx", "Test:"));
 
             Assert.IsFalse(test("", "Test:"));
             Assert.IsFalse(test("T", "Test:"));
             Assert.IsFalse(test("Test", "Test:"));
+
+            Assert.ThrowsException<Exception>(() => test("Test: xxx", ""));
         }
 
         [TestMethod()]

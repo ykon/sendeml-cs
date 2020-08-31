@@ -32,15 +32,13 @@ namespace SendEML {
         static readonly byte[] MESSAGE_ID_BYTES = Encoding.UTF8.GetBytes("Message-ID:");
 
         public static bool MatchHeader(byte[] line, byte[] header) {
+            if (header.Length == 0)
+                throw new Exception("header is empty");
+
             if (line.Length < header.Length)
                 return false;
 
-            for (var i = 0; i < header.Length; i++) {
-                if (header[i] != line[i])
-                    return false;
-            }
-
-            return true;
+            return Enumerable.Range(0, header.Length).All(i => header[i] == line[i]);
         }
 
         public static bool IsDateLine(byte[] line) {

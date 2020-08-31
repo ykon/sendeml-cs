@@ -5,12 +5,15 @@
 
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System;
+using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+
+#nullable enable
 
 namespace SendEML.Tests {
     using SendCmd = Func<string, string>;
@@ -32,9 +35,9 @@ namespace SendEML.Tests {
     [TestClass()]
     public class ProgramTests {
         [TestMethod()]
-        public void MatchHeaderFieldTest() {
+        public void MatchHeaderTest() {
             Func<string, string, bool> test =
-                (s1, s2) => Program.MatchHeaderField(s1.ToBytes(), s2.ToBytes());
+                (s1, s2) => Program.MatchHeader(s1.ToBytes(), s2.ToBytes());
 
             Assert.IsTrue(test("Test:", "Test:"));
             Assert.IsTrue(test("Test: ", "Test:"));
@@ -291,17 +294,50 @@ Message-ID:
             Assert.IsFalse(Program.IsFirstWsp(new[] { (byte)'a', (byte)'b', (byte)'\t' }));
         }
 
+        bool EqualSeqInSeq<T>(IEnumerable<IEnumerable<T>> list1, IEnumerable<IEnumerable<T>> list2) {
+            if (list1.Count() != list2.Count())
+                return false;
+
+            return list1.Zip(list2).All(t => t.First.SequenceEqual(t.Second));
+        }
+
+        [TestMethod()]
+        public void ReplaceDateLineTest() {
+            var fMail = MakeFoldedMail();
+            var lines = Program.GetRawLines(fMail);
+            var newLines = Program.ReplaceDateLine(lines);
+            Assert.IsFalse(EqualSeqInSeq(lines, newLines));
+
+            var newMail = Program.ConcatBytes(newLines);
+            CollectionAssert.AreNotEqual(fMail, newMail);
+            Assert.AreNotEqual(GetDateLine(fMail), GetDateLine(newMail));
+            Assert.AreEqual(GetMessageIdLine(fMail), GetMessageIdLine(newMail));
+        }
+
+        [TestMethod()]
+        public void ReplaceMessageIdLineTest() {
+            var fMail = MakeFoldedMail();
+            var lines = Program.GetRawLines(fMail);
+            var newLines = Program.ReplaceMessageIdLine(lines);
+            CollectionAssert.AreNotEqual(lines, newLines);
+
+            var newMail = Program.ConcatBytes(newLines);
+            CollectionAssert.AreNotEqual(fMail, newMail);
+            Assert.AreNotEqual(GetMessageIdLine(fMail), GetMessageIdLine(newMail));
+            Assert.AreEqual(GetDateLine(fMail), GetDateLine(newMail));
+        }
+
         [TestMethod()]
         public void ReplaceHeaderTest() {
-            var (header, _) = Program.SplitMail(MakeSimpleMail()).Value;
-            var dateLine = GetDateLine(header);
-            var midLine = GetMessageIdLine(header);
+            var mail = MakeSimpleMail();
+            var dateLine = GetDateLine(mail);
+            var midLine = GetMessageIdLine(mail);
 
-            var replHeaderNoupdate = Program.ReplaceHeader(header, false, false);
-            CollectionAssert.AreEqual(header, replHeaderNoupdate);
+            var replHeaderNoupdate = Program.ReplaceHeader(mail, false, false);
+            CollectionAssert.AreEqual(mail, replHeaderNoupdate);
 
-            var replHeader = Program.ReplaceHeader(header, true, true);
-            CollectionAssert.AreNotEqual(header, replHeader);
+            var replHeader = Program.ReplaceHeader(mail, true, true);
+            CollectionAssert.AreNotEqual(mail, replHeader);
 
             (string, string) Replace(byte[] header, bool updateDate, bool updateMessageId) {
                 var rHeader = Program.ReplaceHeader(header, updateDate, updateMessageId);
@@ -309,20 +345,20 @@ Message-ID:
                 return (GetDateLine(rHeader), GetMessageIdLine(rHeader));
             }
 
-            var (rDateLine, rMidLine) = Replace(header, true, true);
+            var (rDateLine, rMidLine) = Replace(mail, true, true);;
             Assert.AreNotEqual(dateLine, rDateLine);
             Assert.AreNotEqual(midLine, rMidLine);
 
-            var (rDateLine2, rMidLine2) = Replace(header, true, false);
+            var (rDateLine2, rMidLine2) = Replace(mail, true, false);
             Assert.AreNotEqual(dateLine, rDateLine2);
             Assert.AreEqual(midLine, rMidLine2);
 
-            var (rDateLine3, rMidLine3) = Replace(header, false, true);
+            var (rDateLine3, rMidLine3) = Replace(mail, false, true);
             Assert.AreEqual(dateLine, rDateLine3);
             Assert.AreNotEqual(midLine, rMidLine3);
 
-            var (foldedHeader, _) = Program.SplitMail(MakeFoldedMail()).Value;
-            var (fDateLine, fMidLine) = Replace(foldedHeader, true, true);
+            var fMail = MakeFoldedMail();
+            var (fDateLine, fMidLine) = Replace(fMail, true, true);
             Assert.AreEqual(1, fDateLine.Count(c => c == '\n'));
             Assert.AreEqual(1, fMidLine.Count(c => c == '\n'));
         }
@@ -339,7 +375,7 @@ Message-ID:
         [TestMethod()]
         public void CombineMailTest() {
             var mail = MakeSimpleMail();
-            var (header, body) = Program.SplitMail(mail).Value;
+            var (header, body) = Program.SplitMail(mail)!.Value;
             var newMail = Program.CombineMail(header, body);
             CollectionAssert.AreEqual(mail, newMail);
         }
@@ -359,7 +395,7 @@ Message-ID:
             var headerBody = Program.SplitMail(mail);
             Assert.IsTrue(headerBody.HasValue);
 
-            var (header, body) = headerBody.Value;
+            var (header, body) = headerBody!.Value;
             CollectionAssert.AreEqual(mail.Take(414).ToArray(), header);
             CollectionAssert.AreEqual(mail.Skip(414 + 4).ToArray(), body);
 
@@ -376,10 +412,10 @@ Message-ID:
             var replMail = Program.ReplaceMail(mail, true, true);
             Assert.AreNotEqual(mail, replMail);
             CollectionAssert.AreNotEqual(mail, replMail);
-            CollectionAssert.AreEqual(mail[^100..^0], replMail[^100..^0]);
+            CollectionAssert.AreEqual(mail[^100..^0], replMail![^100..^0]);
 
             var invalidMail = MakeInvalidMail();
-            CollectionAssert.AreEqual(invalidMail, Program.ReplaceMail(invalidMail, true, true));
+            CollectionAssert.AreEqual(null, Program.ReplaceMail(invalidMail, true, true));
         }
 
         [TestMethod()]

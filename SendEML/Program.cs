@@ -15,6 +15,8 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
+#nullable enable
+
 namespace SendEML {
     using SendCmd = Func<string, string>;
     public class Program {
@@ -29,7 +31,7 @@ namespace SendEML {
         static readonly byte[] DATE_BYTES = Encoding.UTF8.GetBytes("Date:");
         static readonly byte[] MESSAGE_ID_BYTES = Encoding.UTF8.GetBytes("Message-ID:");
 
-        public static bool MatchHeaderField(byte[] line, byte[] header) {
+        public static bool MatchHeader(byte[] line, byte[] header) {
             if (line.Length < header.Length)
                 return false;
 
@@ -42,7 +44,7 @@ namespace SendEML {
         }
 
         public static bool IsDateLine(byte[] line) {
-            return MatchHeaderField(line, DATE_BYTES);
+            return MatchHeader(line, DATE_BYTES);
         }
 
         public static string MakeNowDateLine() {
@@ -53,7 +55,7 @@ namespace SendEML {
         }
 
         public static bool IsMessageIdLine(byte[] line) {
-            return MatchHeaderField(line, MESSAGE_ID_BYTES);
+            return MatchHeader(line, MESSAGE_ID_BYTES);
         }
 
         static readonly Random random = new Random();
@@ -91,10 +93,10 @@ namespace SendEML {
             return destBuf;
         }
 
-        public static ImmutableList<byte[]> GetRawLines(byte[] fileBuf) {
+        public static ImmutableList<byte[]> GetRawLines(byte[] bytes) {
             var offset = 0;
-            return FindAllLfIndices(fileBuf).Add(fileBuf.Length - 1).Select(i => {
-                var line = CopyNew(fileBuf, offset, i - offset + 1);
+            return FindAllLfIndices(bytes).Add(bytes.Length - 1).Select(i => {
+                var line = CopyNew(bytes, offset, i - offset + 1);
                 offset = i + 1;
                 return line;
             }).ToImmutableList();
@@ -122,33 +124,35 @@ namespace SendEML {
             return IsWsp(bytes.FirstOrDefault());
         }
 
+        static ImmutableList<byte[]> ReplaceLine(ImmutableList<byte[]> lines, Predicate<byte[]> matchLine, Func<string> makeLine) {
+            var idx = lines.FindIndex(matchLine);
+            if (idx == -1)
+                return lines;
+
+            var p1 = lines.Take(idx);
+            var p2 = Encoding.UTF8.GetBytes(makeLine());
+            var p3 = lines.Skip(idx + 1).SkipWhile(IsFirstWsp);
+
+            return p1.Append(p2).Concat(p3).ToImmutableList();
+        }
+
+        public static ImmutableList<byte[]> ReplaceDateLine(ImmutableList<byte[]> lines) {
+            return ReplaceLine(lines, IsDateLine, MakeNowDateLine);
+        }
+
+        public static ImmutableList<byte[]> ReplaceMessageIdLine(ImmutableList<byte[]> lines) {
+            return ReplaceLine(lines, IsMessageIdLine, MakeRandomMessageIdLine);
+        }
+
         public static byte[] ReplaceHeader(byte[] header, bool updateDate, bool updateMessageId) {
-            if (IsNotUpdate(updateDate, updateMessageId))
-                return header;
-
-            static void RemoveFolding(ImmutableList<byte[]>.Builder lines, int idx) {
-                for (var i = idx; i < lines.Count; i++) {
-                    if (IsFirstWsp(lines[i]))
-                        lines[i] = new byte[0];
-                    else
-                        break;
-                }
-            }
-
-            static void ReplaceLine(ImmutableList<byte[]>.Builder lines, bool update, Predicate<byte[]> matchLine, Func<string> makeLine) {
-                if (update) {
-                    var idx = lines.FindIndex(matchLine);
-                    if (idx != -1) {
-                        lines[idx] = Encoding.UTF8.GetBytes(makeLine());
-                        RemoveFolding(lines, idx + 1);
-                    }
-                }
-            }
-
-            var lines = GetRawLines(header).ToBuilder();
-            ReplaceLine(lines, updateDate, IsDateLine, MakeNowDateLine);
-            ReplaceLine(lines, updateMessageId, IsMessageIdLine, MakeRandomMessageIdLine);
-            return ConcatBytes(lines.ToImmutable());
+            var lines = GetRawLines(header);
+            var newLines = (updateDate, updateMessageId) switch {
+                (true, true) => ReplaceMessageIdLine(ReplaceDateLine(lines)),
+                (true, false) => ReplaceDateLine(lines),
+                (false, true) => ReplaceMessageIdLine(lines),
+                (false, false) => lines
+            };
+            return ConcatBytes(newLines);
         }
 
         public static readonly byte[] EMPTY_LINE = new[] { CR, LF, CR, LF };
@@ -157,40 +161,38 @@ namespace SendEML {
             return ConcatBytes(new[] { header, EMPTY_LINE, body });
         }
 
-        public static int FindEmptyLine(byte[] fileBuf) {
+        public static int FindEmptyLine(byte[] bytes) {
             var offset = 0;
             while (true) {
-                var idx = FindCrIndex(fileBuf, offset);
-                if (idx == -1 || (idx + 3) >= fileBuf.Length)
+                var idx = FindCrIndex(bytes, offset);
+                if (idx == -1 || (idx + 3) >= bytes.Length)
                     return -1;
 
-                if (fileBuf[idx + 1] == LF && fileBuf[idx + 2] == CR && fileBuf[idx + 3] == LF)
+                if (bytes[idx + 1] == LF && bytes[idx + 2] == CR && bytes[idx + 3] == LF)
                     return idx;
 
                 offset = idx + 1;
             }
         }
 
-        public static (byte[], byte[])? SplitMail(byte[] fileBuf) {
-            var idx = FindEmptyLine(fileBuf);
+        public static (byte[], byte[])? SplitMail(byte[] bytes) {
+            var idx = FindEmptyLine(bytes);
             if (idx == -1)
                 return null;
 
-            var header = CopyNew(fileBuf, 0, idx);
+            var header = CopyNew(bytes, 0, idx);
             var bodyIdx = idx + EMPTY_LINE.Length;
-            var body = CopyNew(fileBuf, bodyIdx, fileBuf.Length - bodyIdx);
+            var body = CopyNew(bytes, bodyIdx, bytes.Length - bodyIdx);
             return (header, body);
         }
 
-        public static byte[] ReplaceMail(byte[] fileBuf, bool updateDate, bool updateMessageId) {
+        public static byte[]? ReplaceMail(byte[] bytes, bool updateDate, bool updateMessageId) {
             if (IsNotUpdate(updateDate, updateMessageId))
-                return fileBuf;
+                return bytes;
 
-            var mail = SplitMail(fileBuf);
-            if (!mail.HasValue) {
-                Console.WriteLine("error: Invalid mail: Disable updateDate, updateMessageId");
-                return fileBuf;
-            }
+            var mail = SplitMail(bytes);
+            if (!mail.HasValue)
+                return null;
 
             var (header, body) = mail.Value;
             var replHeader = ReplaceHeader(header, updateDate, updateMessageId);
@@ -204,8 +206,12 @@ namespace SendEML {
         public static void SendMail(Stream stream, string file, bool updateDate, bool updateMessageId, bool use_parallel = false) {
             Console.WriteLine(MakeIdPrefix(use_parallel) + $"send: {file}");
 
-            var path = Path.GetFullPath(file);
-            var buf = ReplaceMail(File.ReadAllBytes(path), updateDate, updateMessageId);
+            var mail = File.ReadAllBytes(Path.GetFullPath(file));
+            var replMail = ReplaceMail(mail, updateDate, updateMessageId);
+            if (replMail == null)
+                Console.WriteLine("error: Invalid mail: Disable updateDate, updateMessageId");
+
+            var buf = replMail ?? mail;
             stream.Write(buf, 0, buf.Length);
             stream.Flush();
         }
@@ -405,13 +411,7 @@ namespace SendEML {
                 SendFrom(send, settings.FromAddress);
                 SendRcptTo(send, settings.ToAddresses);
                 SendData(send);
-
-                try {
-                    SendMail(stream, file, settings.UpdateDate, settings.UpdateMessageId, useParallel);
-                } catch (Exception e) {
-                    throw new Exception($"{file}: {e.Message}");
-                }
-
+                SendMail(stream, file, settings.UpdateDate, settings.UpdateMessageId, useParallel);
                 SendCrlfDot(send);
                 reset = true;
             }

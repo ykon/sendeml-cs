@@ -38,7 +38,7 @@ namespace SendEML {
             if (line.Length < header.Length)
                 return false;
 
-            return Enumerable.Range(0, header.Length).All(i => header[i] == line[i]);
+            return line[..header.Length].SequenceEqual(header);
         }
 
         public static bool IsDateLine(byte[] line) {
@@ -64,19 +64,19 @@ namespace SendEML {
             return $"Message-ID: <{randStr}>" + CRLF;
         }
 
-        public static int FindCrIndex(byte[] buf, int offset) {
+        public static int FindCr(byte[] buf, int offset) {
             return Array.IndexOf(buf, CR, offset);
         }
 
-        public static int FindLfIndex(byte[] buf, int offset) {
+        public static int FindLf(byte[] buf, int offset) {
             return Array.IndexOf(buf, LF, offset);
         }
 
-        public static ImmutableList<int> FindAllLfIndices(byte[] buf) {
+        public static ImmutableList<int> FindAllLf(byte[] buf) {
             var indices = ImmutableList.CreateBuilder<int>();
             var offset = 0;
             while (true) {
-                var idx = FindLfIndex(buf, offset);
+                var idx = FindLf(buf, offset);
                 if (idx == -1)
                     return indices.ToImmutable();
 
@@ -85,16 +85,10 @@ namespace SendEML {
             }
         }
 
-        public static byte[] CopyNew(byte[] srcBuf, int offset, int count) {
-            var destBuf = new byte[count];
-            Buffer.BlockCopy(srcBuf, offset, destBuf, 0, destBuf.Length);
-            return destBuf;
-        }
-
-        public static ImmutableList<byte[]> GetRawLines(byte[] bytes) {
+        public static ImmutableList<byte[]> GetLines(byte[] bytes) {
             var offset = 0;
-            return FindAllLfIndices(bytes).Add(bytes.Length - 1).Select(i => {
-                var line = CopyNew(bytes, offset, i - offset + 1);
+            return FindAllLf(bytes).Add(bytes.Length - 1).Select(i => {
+                var line = bytes[offset..(i + 1)];
                 offset = i + 1;
                 return line;
             }).ToImmutableList();
@@ -143,7 +137,7 @@ namespace SendEML {
         }
 
         public static byte[] ReplaceHeader(byte[] header, bool updateDate, bool updateMessageId) {
-            var lines = GetRawLines(header);
+            var lines = GetLines(header);
             var newLines = (updateDate, updateMessageId) switch {
                 (true, true) => ReplaceMessageIdLine(ReplaceDateLine(lines)),
                 (true, false) => ReplaceDateLine(lines),
@@ -159,14 +153,18 @@ namespace SendEML {
             return ConcatBytes(new[] { header, EMPTY_LINE, body });
         }
 
+        public static bool HasNextLfCrLf(byte[] bytes, int idx) {
+            return (bytes.Length < (idx + 4)) ? false
+                : bytes[(idx + 1)..(idx + 4)].SequenceEqual(new[] { LF, CR, LF});
+        }
+
         public static int FindEmptyLine(byte[] bytes) {
             var offset = 0;
             while (true) {
-                var idx = FindCrIndex(bytes, offset);
-                if (idx == -1 || (idx + 3) >= bytes.Length)
+                var idx = FindCr(bytes, offset);
+                if (idx == -1)
                     return -1;
-
-                if (bytes[idx + 1] == LF && bytes[idx + 2] == CR && bytes[idx + 3] == LF)
+                if (HasNextLfCrLf(bytes, idx))
                     return idx;
 
                 offset = idx + 1;
@@ -178,9 +176,8 @@ namespace SendEML {
             if (idx == -1)
                 return null;
 
-            var header = CopyNew(bytes, 0, idx);
-            var bodyIdx = idx + EMPTY_LINE.Length;
-            var body = CopyNew(bytes, bodyIdx, bytes.Length - bodyIdx);
+            var header = bytes[..idx];
+            var body = bytes[(idx + EMPTY_LINE.Length)..];
             return (header, body);
         }
 

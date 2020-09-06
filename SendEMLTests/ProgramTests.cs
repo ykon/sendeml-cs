@@ -40,12 +40,13 @@ namespace SendEML.Tests {
                 (s1, s2) => Program.MatchHeader(s1.ToBytes(), s2.ToBytes());
 
             Assert.IsTrue(test("Test:", "Test:"));
-            Assert.IsTrue(test("Test: ", "Test:"));
+            Assert.IsTrue(test("Test:   ", "Test:"));
             Assert.IsTrue(test("Test: xxx", "Test:"));
 
             Assert.IsFalse(test("", "Test:"));
             Assert.IsFalse(test("T", "Test:"));
             Assert.IsFalse(test("Test", "Test:"));
+            Assert.IsFalse(test("Xest:", "Test:"));
 
             Assert.ThrowsException<Exception>(() => test("Test: xxx", ""));
         }
@@ -209,25 +210,25 @@ Message-ID:
         }
 
         [TestMethod()]
-        public void FindCrIndexTest() {
+        public void FindCrTest() {
             var mail = MakeSimpleMail();
-            Assert.AreEqual(33, Program.FindCrIndex(mail, 0));
-            Assert.AreEqual(48, Program.FindCrIndex(mail, 34));
-            Assert.AreEqual(74, Program.FindCrIndex(mail, 58));
+            Assert.AreEqual(33, Program.FindCr(mail, 0));
+            Assert.AreEqual(48, Program.FindCr(mail, 34));
+            Assert.AreEqual(74, Program.FindCr(mail, 58));
         }
 
         [TestMethod()]
-        public void FindLfIndexTest() {
+        public void FindLfTest() {
             var mail = MakeSimpleMail();
-            Assert.AreEqual(34, Program.FindLfIndex(mail, 0));
-            Assert.AreEqual(49, Program.FindLfIndex(mail, 35));
-            Assert.AreEqual(75, Program.FindLfIndex(mail, 59));
+            Assert.AreEqual(34, Program.FindLf(mail, 0));
+            Assert.AreEqual(49, Program.FindLf(mail, 35));
+            Assert.AreEqual(75, Program.FindLf(mail, 59));
         }
 
         [TestMethod()]
-        public void FindAllLfIndicesTest() {
+        public void FindAllLfTest() {
             var mail = MakeSimpleMail();
-            var indices = Program.FindAllLfIndices(mail);
+            var indices = Program.FindAllLf(mail);
 
             Assert.AreEqual(34, indices[0]);
             Assert.AreEqual(49, indices[1]);
@@ -239,26 +240,9 @@ Message-ID:
         }
 
         [TestMethod()]
-        public void CopyNewTest() {
+        public void GetLinesTest() {
             var mail = MakeSimpleMail();
-
-            var buf = Program.CopyNew(mail, 0, 10);
-            Assert.AreEqual(10, buf.Length);
-            CollectionAssert.AreEqual(mail.Take(10).ToArray(), buf);
-
-            var buf2 = Program.CopyNew(mail, 10, 20);
-            Assert.AreEqual(20, buf2.Length);
-            CollectionAssert.AreEqual(mail.Skip(10).Take(20).ToArray(), buf2);
-
-            buf[0] = 0;
-            Assert.AreEqual(0, buf[0]);
-            Assert.AreNotEqual(0, mail[0]);
-        }
-
-        [TestMethod()]
-        public void GetRawLinesTest() {
-            var mail = MakeSimpleMail();
-            var lines = Program.GetRawLines(mail);
+            var lines = Program.GetLines(mail);
 
             Assert.AreEqual(13, lines.Count);
             Assert.AreEqual("From: a001 <a001@ah62.example.jp>\r\n", lines[0].ToUtf8String());
@@ -306,7 +290,7 @@ Message-ID:
         [TestMethod()]
         public void ReplaceDateLineTest() {
             var fMail = MakeFoldedMail();
-            var lines = Program.GetRawLines(fMail);
+            var lines = Program.GetLines(fMail);
             var newLines = Program.ReplaceDateLine(lines);
             Assert.IsFalse(EqualSeqInSeq(lines, newLines));
 
@@ -319,7 +303,7 @@ Message-ID:
         [TestMethod()]
         public void ReplaceMessageIdLineTest() {
             var fMail = MakeFoldedMail();
-            var lines = Program.GetRawLines(fMail);
+            var lines = Program.GetLines(fMail);
             var newLines = Program.ReplaceMessageIdLine(lines);
             CollectionAssert.AreNotEqual(lines, newLines);
 
@@ -368,7 +352,7 @@ Message-ID:
         [TestMethod()]
         public void ConcatBytesTest() {
             var mail = MakeSimpleMail();
-            var lines = Program.GetRawLines(mail);
+            var lines = Program.GetLines(mail);
 
             var newMail = Program.ConcatBytes(lines);
             CollectionAssert.AreEqual(mail, newMail);
@@ -380,6 +364,21 @@ Message-ID:
             var (header, body) = Program.SplitMail(mail)!.Value;
             var newMail = Program.CombineMail(header, body);
             CollectionAssert.AreEqual(mail, newMail);
+        }
+
+        const byte CR = Program.CR;
+        const byte LF = Program.LF;
+
+        [TestMethod()]
+        public void HasNextLfCrLfTest() {
+            var zero = (byte)'\0';
+
+            Assert.IsTrue(Program.HasNextLfCrLf(new[] { CR, LF, CR, LF}, 0));
+            Assert.IsTrue(Program.HasNextLfCrLf(new[] { zero, CR, LF, CR, LF }, 1));
+
+            Assert.IsFalse(Program.HasNextLfCrLf(new[] { CR, LF, CR, LF }, 1));
+            Assert.IsFalse(Program.HasNextLfCrLf(new[] { CR, LF, CR, zero }, 0));
+            Assert.IsFalse(Program.HasNextLfCrLf(new[] { CR, LF, CR, LF, zero }, 1));
         }
 
         [TestMethod()]

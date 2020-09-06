@@ -20,7 +20,7 @@ using System.Threading.Tasks;
 namespace SendEML {
     using SendCmd = Func<string, string>;
     public class Program {
-        public const double VERSION = 1.5;
+        public const double VERSION = 1.6;
 
         public const byte CR = (byte)'\r';
         public const byte LF = (byte)'\n';

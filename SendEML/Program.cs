@@ -19,6 +19,7 @@ using System.Threading.Tasks;
 
 namespace SendEML {
     using SendCmd = Func<string, string>;
+    using Lines = ImmutableList<byte[]>;
     public class Program {
         public const double VERSION = 1.6;
 
@@ -35,10 +36,8 @@ namespace SendEML {
             if (header.Length == 0)
                 throw new Exception("header is empty");
 
-            if (line.Length < header.Length)
-                return false;
-
-            return line[..header.Length].SequenceEqual(header);
+            return (line.Length < header.Length) ? false
+                : line[..header.Length].SequenceEqual(header);
         }
 
         public static bool IsDateLine(byte[] line) {
@@ -85,7 +84,7 @@ namespace SendEML {
             }
         }
 
-        public static ImmutableList<byte[]> GetLines(byte[] bytes) {
+        public static Lines GetLines(byte[] bytes) {
             var offset = 0;
             return FindAllLf(bytes).Add(bytes.Length - 1).Select(i => {
                 var line = bytes[offset..(i + 1)];
@@ -116,7 +115,7 @@ namespace SendEML {
             return IsWsp(bytes.FirstOrDefault());
         }
 
-        static ImmutableList<byte[]> ReplaceLine(ImmutableList<byte[]> lines, Predicate<byte[]> matchLine, Func<string> makeLine) {
+        static Lines ReplaceLine(Lines lines, Predicate<byte[]> matchLine, Func<string> makeLine) {
             var idx = lines.FindIndex(matchLine);
             if (idx == -1)
                 return lines;
@@ -128,23 +127,22 @@ namespace SendEML {
             return p1.Append(p2).Concat(p3).ToImmutableList();
         }
 
-        public static ImmutableList<byte[]> ReplaceDateLine(ImmutableList<byte[]> lines) {
+        public static Lines ReplaceDateLine(Lines lines) {
             return ReplaceLine(lines, IsDateLine, MakeNowDateLine);
         }
 
-        public static ImmutableList<byte[]> ReplaceMessageIdLine(ImmutableList<byte[]> lines) {
+        public static Lines ReplaceMessageIdLine(Lines lines) {
             return ReplaceLine(lines, IsMessageIdLine, MakeRandomMessageIdLine);
         }
 
         public static byte[] ReplaceHeader(byte[] header, bool updateDate, bool updateMessageId) {
             var lines = GetLines(header);
-            var newLines = (updateDate, updateMessageId) switch {
+            return ConcatBytes((updateDate, updateMessageId) switch {
                 (true, true) => ReplaceMessageIdLine(ReplaceDateLine(lines)),
                 (true, false) => ReplaceDateLine(lines),
                 (false, true) => ReplaceMessageIdLine(lines),
                 (false, false) => lines
-            };
-            return ConcatBytes(newLines);
+            });
         }
 
         public static readonly byte[] EMPTY_LINE = new[] { CR, LF, CR, LF };
